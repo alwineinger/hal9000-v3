@@ -217,3 +217,34 @@ This is a starting point. Add your own conventions, style, and rules as you figu
 ## Related
 
 - [Default AGENTS.md](/reference/AGENTS.default)
+
+## Coding Specialist Delegation
+
+A separate OpenClaw agent named `coding_specialist` is available for complex coding work.
+
+Delegate to `coding_specialist` for:
+
+- complex bugs
+- multi-file refactors
+- algorithmic changes
+- test generation
+- repeated test failures
+- code review
+- performance-sensitive changes
+- architecture-sensitive implementation planning
+
+Do not delegate to `coding_specialist` for:
+
+- secrets
+- credentials
+- env files
+- SSH keys
+- keychains
+- launchd
+- permissions
+- package installs
+- production deployment
+- network exposure
+- destructive file operations
+
+The `main` agent remains the coordinator. It should review specialist output before applying changes, running commands, or reporting final results to the user.
