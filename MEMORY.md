@@ -74,7 +74,7 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 
 - Hubitat integrated with **Hayward PL-PLUS** pool automation controller via RS485 (code in Andy's hubitat/aqualogic repos). PL-PLUS handles heater behavior autonomously once spa mode + heater relay + heater auto are all enabled — no ongoing openclaw control needed during preheat.
 - **Pool/Spa key behavior:** When `spaMode on` + `heaterPower on` + `heaterAuto on` → PL-PLUS manages heating to target temp on its own. No re-invocation needed during preheat. Spa automation's only end-of-event job: return to pool mode (`spaMode off`, `heaterAuto off`).
-- Spa preheat workflow: launchd polls khal every 15 min → detects upcoming "Spa" event → reads preheat override file if present → calculates lead time (null guard → 60 min default) → calls `spaHeatStart` macro at preheat window → PL-PLUS handles heating → launchd calls `spaHeatStop` macro at event end to return to pool mode.
+- Spa preheat workflow: launchd polls khal every 5 min → detects upcoming "Spa" event → reads preheat override file if present → calculates lead time (null guard → 60 min default) → calls `spaHeatStart` macro at preheat window → PL-PLUS handles heating → launchd calls `spaHeatStop` macro at event end to return to pool mode.
 - Weather approval: if storms/rain present at preheat start (chance ≥ 35% per OpenWeather forecast), scheduler requests Telegram approval before calling `spaHeatStart`. Once approved, no more approval polling needed (heater is autonomous). Andy saw 58% thunder at 5pm ET in external forecast vs OpenWeather's 58% as well — data matched.
 - Hubitat Maker API in use for device control.
 - Safety-critical controls include pool/spa mode and heater relays.
@@ -101,7 +101,9 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 
 - Weather fetch via `spa/weather-fetch.js` using OpenWeather `/data/2.5/forecast` for Tampa FL (lat 28.0375, lon -82.4246). API key in `~/.openclaw/secrets/openweather-api.txt`. Falls back to null on failure — scheduler never blocks on weather. isWeatherRisky() thresholds: rain ≥ 50% or thunder ≥ 35% in any hourly window within 4 hours. Desc keyword match also triggers risk.
 
-- **Hubitat integration always use subagents** — Andy explicitly directed "use subagents for all 3" on hubitat work. That pattern applies to any hubitat scripting, config, or device control tasks. Even small edits go through a subagent unless the change is truly trivial (one-liner, no logic).
+- **Weather approval requires explicit env var**: `SPA_WEATHER_APPROVAL_NOTIFY=1` must be set in the launchd plist for Telegram approval prompts to send. Without it, `sendWeatherApprovalPrompt` returns `{skipped: true}` — silently no-op.
+- **`uid` vs `id` in approval matching**: calendar events emit `uid`, not `id`. `approval.js` originally used `nextSpaEvent.id` (always undefined) — now fixed to use `uid`.
+- **launchd fires on 5-min grid, not dynamic**: `StartInterval 300` means :00, :05, :10, :15... The scheduler sees preheat windows on the next 5-min boundary, not at the exact preheat time. With 5-min runs, max lag is 4 min 59 sec vs 14 min 59 sec before.
 
 - **Use subagents proactively** for any work that would block main agent responsiveness in chat. Spawn background tasks rather than doing heavy work inline.
 - Prefer explicit confirmations before risky smarthome actions.
