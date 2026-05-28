@@ -79,6 +79,10 @@ Use for any task that would block chat, especially: multi-step automations, batc
 
 Use `context:"fork"` only when the child needs current transcript; otherwise omit for isolation.
 
+### Subagent Status Reporting
+
+**Always call `subagents list` before reporting status.** Never infer from memory — if unsure, say "let me check" first. Mark completions as final; stop listing them once done.
+
 ### `coding_specialist`
 For complex coding only: complex bugs, multi-file refactors, algorithmic changes, test generation, code review, performance-sensitive work.
 
