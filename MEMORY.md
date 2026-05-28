@@ -30,8 +30,11 @@ git push
 
 - Spa scheduling lives in: `hubitat/spa/`
 - Entry point: `hubitat/spa/scheduler.js` (launchd-driven, every 15 min)
-- Primary calendar: `hubitat/spa/calendar-fetch.js` (khal/vdirsyncer)
+- Primary calendar: `hubitat/spa/calendar-fetch.js` (khal reads local .ics, which vdirsyncer keeps fresh via `com.andy.vdirsyncer-sync.plist` polling ~every 15 min)
 - Alt calendar: `hubitat/spa/calendar-direct.js` (direct iCloud CalDAV via curl + node-ical)
+- Device state read via: `hubitat/monitor.js` (external dependency)
+- Device control via: `hubitat/control.js` (macros: spaHeatStart, spaHeatStop, etc.)
+- launchd plist: `~/Library/LaunchAgents/ai.openclaw.spa-scheduler.plist` (uses `StartInterval 900`, not `TimerInterval`) — spa override: `~/.openclaw/workspace/data/spa-preheat-override.json`
 - Skill doc: `skills/hubitat/SKILL.md`
 - Device state read via: `hubitat/monitor.js` (external dependency)
 - Device control via: `hubitat/control.js` (macros: spaHeatStart, spaHeatStop, etc.)
@@ -60,8 +63,8 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 
 - Hubitat integrated with **Hayward PL-PLUS** pool automation controller via RS485 (code in Andy's hubitat/aqualogic repos). PL-PLUS handles heater behavior autonomously once spa mode + heater relay + heater auto are all enabled — no ongoing openclaw control needed during preheat.
 - **Pool/Spa key behavior:** When `spaMode on` + `heaterPower on` + `heaterAuto on` → PL-PLUS manages heating to target temp on its own. No re-invocation needed during preheat. Spa automation's only end-of-event job: return to pool mode (`spaMode off`, `heaterAuto off`).
-- Spa preheat workflow: launchd polls khal every 15 min → detects upcoming "Spa" event → calculates lead time → calls `spaHeatStart` macro at preheat window → PL-PLUS handles heating → launchd calls `spaHeatStop` macro at event end to return to pool mode.
-- Weather approval: if storms/rain present at preheat start, scheduler requests Telegram approval before calling `spaHeatStart`. Once approved, no more approval polling needed (heater is autonomous).
+- Spa preheat workflow: launchd polls khal every 15 min → detects upcoming "Spa" event → reads preheat override file if present → calculates lead time (null guard → 60 min default) → calls `spaHeatStart` macro at preheat window → PL-PLUS handles heating → launchd calls `spaHeatStop` macro at event end to return to pool mode.
+- Weather approval: if storms/rain present at preheat start (chance ≥ 35% per OpenWeather forecast), scheduler requests Telegram approval before calling `spaHeatStart`. Once approved, no more approval polling needed (heater is autonomous). Andy saw 58% thunder at 5pm ET in external forecast vs OpenWeather's 58% as well — data matched.
 - Hubitat Maker API in use for device control.
 - Safety-critical controls include pool/spa mode and heater relays.
 - Guardrails are required for risky actions and should remain default behavior.
@@ -85,7 +88,7 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 
 ## Operational Lessons
 
-- Weather fetch wired in via `spa/weather-fetch.js` using wttr.in for Tampa, FL (lat/lon near 15901 Layton Ct, Tampa FL 33647). Location param: Tampa,FL. Falls back to null on failure — scheduler never blocks on weather.
+- Weather fetch via `spa/weather-fetch.js` using OpenWeather `/data/2.5/forecast` for Tampa FL (lat 28.0375, lon -82.4246). API key in `~/.openclaw/secrets/openweather-api.txt`. Falls back to null on failure — scheduler never blocks on weather. isWeatherRisky() thresholds: rain ≥ 50% or thunder ≥ 35% in any hourly window within 4 hours. Desc keyword match also triggers risk.
 
 - **Hubitat integration always use subagents** — Andy explicitly directed "use subagents for all 3" on hubitat work. That pattern applies to any hubitat scripting, config, or device control tasks. Even small edits go through a subagent unless the change is truly trivial (one-liner, no logic).
 
