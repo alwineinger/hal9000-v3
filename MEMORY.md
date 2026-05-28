@@ -59,6 +59,7 @@ git push
 
 ## Working Agreements
 
+- **Use subagents proactively** for any work that would block main agent responsiveness in chat. Spawn background tasks rather than doing heavy work inline.
 - Prefer explicit confirmations before risky smarthome actions.
 - When the user says they're done with the spa, return the system to **pool mode** (spaMode off, poolMode on) as the default safe resting state.
 - Confirm user-requested actions after completion (explicit "done + what changed/verified"), especially while onboarding.
