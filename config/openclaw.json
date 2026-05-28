@@ -9,12 +9,14 @@
           }
         },
         "openrouter/minimax/minimax-m2.5": {},
-        "openrouter/deepseek/deepseek-v4-pro": {}
+        "openrouter/deepseek/deepseek-v4-pro": {},
+        "openrouter/x-ai/grok-4.3": {}
       },
       "model": {
         "primary": "openrouter/minimax/minimax-m2.7",
         "fallbacks": [
-          "openrouter/minimax/minimax-m2.5"
+          "openrouter/minimax/minimax-m2.5",
+          "openrouter/x-ai/grok-4.3"
         ]
       },
       "subagents": {
@@ -36,9 +38,18 @@
         "name": "coding_specialist",
         "workspace": "/Users/oc_user/.openclaw/workspace-coding-specialist",
         "agentDir": "/Users/oc_user/.openclaw/agents/coding_specialist/agent",
-        "model": "openrouter/deepseek/deepseek-v4-pro",
+        "model": {
+          "primary": "openrouter/deepseek/deepseek-v4-pro",
+          "fallbacks": [
+            "openrouter/x-ai/grok-build-0.1"
+          ]
+        },
         "tools": {
           "profile": "coding"
+        },
+        "models": {
+          "openrouter/deepseek/deepseek-v4-pro": {},
+          "openrouter/x-ai/grok-build-0.1": {}
         }
       }
     ]
