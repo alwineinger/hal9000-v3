@@ -28,7 +28,8 @@ const DEVICES = {
 function httpGet(path) {
   return new Promise((resolve, reject) => {
     const url = `${BASE_URL}${path}?${TOKEN_PARAM}`;
-    const [hostPort, rest] = url.replace('http://', '').split('/', 1);
+    const [hostPort, ...pathParts] = url.replace('http://', '').split('/');
+    const rest = pathParts.join('/');
     const [host, port] = hostPort.split(':');
     const options = {
       hostname: host,
@@ -53,7 +54,7 @@ function httpGet(path) {
 async function readAttribute(deviceId, attribute) {
   try {
     const data = await httpGet(`/devices/${deviceId}/attribute/${attribute}`);
-    return data[attribute] ?? null;
+    return data.value ?? null;
   } catch {
     return null;
   }
