@@ -14,7 +14,7 @@ const { loadConfig } = require('./config');
 const { isWeatherRisky } = require('./weather');
 const { calculateLeadMinutes, resolvePreheatWindow } = require('./preheat');
 const { buildPreheatSession, updateSessionObservation, finalizeSession } = require('./session');
-const { approvalMatchesContext, approvalExpiresMs, approvalPromptSent, createPendingApproval, decideFromPollResult } = require('./approval');
+const { approvalMatchesContext, approvalExpiresMs, approvalPromptSent, createPendingApproval, stampApprovalPrompt, decideFromPollResult } = require('./approval');
 const { sendWeatherApprovalPrompt } = require('./telegram');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -22,7 +22,7 @@ const DATA_DIR = path.join(ROOT, 'data');
 
 const STATE_FILE = process.env.SPA_STATE_FILE || path.join(DATA_DIR, 'spa-state.json');
 const EVENTS_FILE = process.env.SPA_EVENTS_FILE || path.join(DATA_DIR, 'spa-events.json');
-const CALENDAR_SCRIPT = path.join(__dirname, 'calendar-fetch.js');
+const CALENDAR_SCRIPT = path.join(ROOT, 'skills', 'apple-calendar-ops', 'scripts', 'calendar_fetch.py');
 const CONTROL_SCRIPT = path.join(ROOT, 'hubitat', 'control.js');
 const HISTORY_FILE = process.env.SPA_HISTORY_FILE || path.join(DATA_DIR, 'spa-preheat-history.json');
 const OVERRIDE_FILE = process.env.SPA_PREHEAT_OVERRIDE_FILE || path.join(DATA_DIR, 'spa-preheat-override.json');
@@ -263,7 +263,7 @@ async function main() {
     });
   }
 
-  // 9. Post-action monitor snapshot (legacy behavior)
+  // 10. Post-action monitor snapshot (legacy behavior)
   let monitorAfter = null;
   if (action === 'spaHeatStart') {
     monitorAfter = await new Promise((resolve, reject) => {
@@ -273,7 +273,7 @@ async function main() {
     });
   }
 
-  // 10. Session observation + finalization
+  // 11. Session observation + finalization
   const previousActivePreheat = previousSnapshot?.activePreheat || null;
   if (!activePreheat && previousActivePreheat && previousActivePreheat.status === 'active') {
     activePreheat = previousActivePreheat;
@@ -298,7 +298,7 @@ async function main() {
     writeHistory(history);
   }
 
-  // 11. Build final snapshot (preserves legacy shape)
+  // 12. Build final snapshot (preserves legacy shape)
   const snapshot = {
     checkedAt,
     weather,

@@ -1,0 +1,7 @@
+# Spa state & approval files — generated at runtime
+data/spa-state.json
+data/spa-weather-approval.json
+data/spa-preheat-override.json
+data/spa-preheat-history.json
+data/spa-events.json
+data/spa-preheat-override.json
