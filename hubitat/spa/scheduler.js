@@ -209,14 +209,18 @@ async function main() {
       config: cfg
     });
 
-    const preheatStartMs = nextSpaStartMs - (leadMinutes * 60 * 1000);
+    const leadMinutesSafe = leadMinutes ?? 60;
+    const override = readOverride();
+    const overrideStartAtMs = override?.startAt ? Date.parse(override.startAt) : null;
+    const preheatStartMs = overrideStartAtMs ?? (nextSpaStartMs - (leadMinutesSafe * 60 * 1000));
 
     saveState(buildState({
       phase: 'idle',
       nextSpaEvent,
       preheatStartMs,
-      leadMinutes,
-      weather
+      leadMinutes: leadMinutesSafe,
+      weather,
+      overrideStartAt: override?.startAt ?? null
     }));
     return;
   }

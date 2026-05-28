@@ -39,9 +39,18 @@ function isWeatherRisky(weather) {
       const hourDate = new Date(`${date}T${time.slice(0, 2)}:${time.slice(2, 4)}:00`);
       const hourMs = hourDate.getTime();
       if (!Number.isFinite(hourMs) || hourMs < horizonStartMs || hourMs > horizonEndMs) continue;
-      const hourDesc = String(hour?.weatherDesc?.[0]?.value || '').toLowerCase();
+      const hourDesc = String(hour?.desc || '').toLowerCase();
       const chanceRain = parseIntOrNull(hour?.chanceofrain);
-      const chanceThunder = parseIntOrNull(hour?.chanceofthunder);
+      let chanceThunder = parseIntOrNull(hour?.chanceofthunder);
+
+      // Keyword fallback: if chanceofthunder is missing/0 and desc has storm keywords,
+      // treat as thunder-risky (OpenWeather onecall may not provide native thunder prob)
+      if (!Number.isFinite(chanceThunder) || chanceThunder === 0) {
+        if (/storm|thunder|thunders/.test(hourDesc)) {
+          chanceThunder = 50;
+        }
+      }
+
       if (/rain|storm|thunder|squall|shower/.test(hourDesc)) return true;
       if (Number.isFinite(chanceRain) && chanceRain >= 50) return true;
       if (Number.isFinite(chanceThunder) && chanceThunder >= 35) return true;

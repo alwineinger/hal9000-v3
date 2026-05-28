@@ -22,7 +22,7 @@ const DEVICES = {
   heaterRun:   2137,  // switch
   heaterAuto:  2138,  // switch
   poolTemp:    2124,  // temperature (bonus)
-  ambientTemp: 2126,  // air temp (bonus)
+  ambientTemp: 1451,  // air temp (lanai under eave, preferred over equipment pad)
 };
 
 function httpGet(path) {
