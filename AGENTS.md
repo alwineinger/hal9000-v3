@@ -210,6 +210,16 @@ Think of it like a human reviewing their journal and updating their mental model
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 
+## 🎛 Subagent Usage — Keep Main Agent Responsive
+
+Use `sessions_spawn` proactively for any work that would block responsiveness in chat:
+
+- Heavy coding tasks → spawn `coding_specialist` subagent
+- Multi-step automations → spawn isolated subagent with clear task/output/scope/verification brief
+- When a task could take more than a few seconds and the user might want to continue chatting
+
+**Rule:** If you'd have to wait for it to finish before responding, spawn it instead.
+
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
