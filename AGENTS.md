@@ -48,6 +48,12 @@ Skills provide your tools. When you need one, check its `SKILL.md`. Keep local n
 
 Check emails, calendar, mentions, weather. Reach out on urgent emails, events <2h, or when it's been >8h. Keep `HEARTBEAT.md` small.
 
+## Skill-First Before Building From Scratch
+
+**Before writing any new script, module, or automation from scratch:** check for an available skill that covers the same ground. Use `clawhub search` for relevant keywords. If a skill exists and is applicable (even if disabled), evaluate it before building new code.
+
+This applies whether the task is calendar sync, device control, messaging, weather, or anything else. If the skill exists, assess whether it works with the user's actual setup (OS, provider, existing tools). If it does, prefer it. If it doesn't work, note why and then build from scratch as a follow-up.
+
 ## Delegation Policy
 
 **If you're doing work that isn't just talking — spawn a subagent.** Read a file twice, run exec twice, edit something, fix something, investigate something: delegate it. Announce in chat first, then delegate.
