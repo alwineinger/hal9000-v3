@@ -5,12 +5,10 @@
 	<key>Label</key>
 	<string>ai.openclaw.spa-scheduler</string>
 
-	<key>Comment</key>
-	<string>SPA Scheduler — 15-min polling (v1.0)</string>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StartInterval</key>
-	<integer>300</integer>
+	<integer>60</integer>
 	<key>ExitTimeOut</key>
 	<integer>60</integer>
 	<key>ProcessType</key>
@@ -30,14 +28,18 @@
 	<dict>
 		<key>PATH</key>
 		<string>/Users/oc_user/Library/Python/3.9/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>HUBITAT_TOKEN_FILE</key>
+		<string>/Users/oc_user/.openclaw/secrets/hubitat-api-key.txt</string>
 		<key>SPA_CALENDAR_DAYS</key>
 		<string>7</string>
+		<key>SPA_WEATHER_APPROVAL_CHANNEL</key>
+		<string>telegram</string>
 		<key>SPA_WEATHER_APPROVAL_TARGET</key>
-		<string>telegram:oc_wineinger</string>
-		<key>SPA_TELEGRAM_APPROVAL_CHAT_ID</key>
 		<string>8004363273</string>
 		<key>SPA_WEATHER_APPROVAL_NOTIFY</key>
 		<string>1</string>
+		<key>OPENCLAW_BIN</key>
+		<string>/opt/homebrew/bin/openclaw</string>
 	</dict>
 
 	<key>StandardOutPath</key>
