@@ -57,7 +57,9 @@ git push
 - Device 2137 ("Lanai Heater Running") mirrors the pool controller's heater command and is read-only; use it to confirm heater calls.
 - Virtual buttons 452/456/457/458/459/460/461 are scene triggers (Alarm Cancel/Off, Goodbye, I'm Back, Good Night!, Good Morning, Kids Home Alone) and must only be invoked when Andy asks.
 
-## Working Agreements
+## Operational Lessons
+
+- **Hubitat integration always use subagents** — Andy explicitly directed "use subagents for all 3" on hubitat work. That pattern applies to any hubitat scripting, config, or device control tasks. Even small edits go through a subagent unless the change is truly trivial (one-liner, no logic).
 
 - **Use subagents proactively** for any work that would block main agent responsiveness in chat. Spawn background tasks rather than doing heavy work inline.
 - Prefer explicit confirmations before risky smarthome actions.

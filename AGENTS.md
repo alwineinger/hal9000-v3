@@ -88,4 +88,6 @@ For complex coding only: complex bugs, multi-file refactors, algorithmic changes
 
 **Never delegate:** secrets, credentials, SSH keys, keychains, env files, launchd, permissions, package installs, production deployment, destructive operations.
 
+**Hubitat integration** — all hubitat scripting, config, and device control code: use a subagent. Andy explicitly directed "use subagents for all 3" for hubitat work; that pattern applies to any follow-up hubitat tasks unless the change is truly trivial (one-liner, no logic).
+
 `main` remains coordinator — review output before applying.
