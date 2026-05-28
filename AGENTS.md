@@ -1,14 +1,8 @@
-# AGENTS.md - Your Workspace
-
-This folder is home. Treat it that way.
+# AGENTS.md - Workspace Rules
 
 ## Hubitat Integration — Hard Rule
 
 **Never do hubitat code/config work in `main`.** Spawn a subagent every time. No exceptions, no "just this once". Diagnostics included — if the diagnostic leads to a file edit, it should have been subagented from the start.
-
-## First Run
-
-If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.
 
 ## Session Startup
 
@@ -19,27 +13,10 @@ Use runtime-provided startup context first. Do not manually reread startup files
 
 ## Memory
 
-You wake up fresh each session. These files _are_ your memory:
-- **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed) — raw logs of what happened
-- **Long-term:** `MEMORY.md` — your curated memories, like a human's long-term memory
-
-Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
-
-### 🧠 MEMORY.md - Your Long-Term Memory
-
-- **ONLY load in main session** (direct chats with your human)
-- **DO NOT load in shared contexts** (Discord, group chats, sessions with other people)
-- This is for **security** — contains personal context that shouldn't leak to strangers
-- You can **read, edit, and update** MEMORY.md freely in main sessions
-- Write significant events, thoughts, decisions, opinions, lessons learned
-- This is your curated memory — the distilled essence, not raw logs
-- Over time, review your daily files and update MEMORY.md with what's worth keeping
-
-### 📝 Write It Down
-
-- Memory doesn't survive restarts — write to files instead
-- Before writing, read first; write only concrete updates
-- "Remember this" → `memory/YYYY-MM-DD.md`. Lesson learned → relevant file or AGENTS.md
+- **Daily notes:** `memory/YYYY-MM-DD.md` — raw logs of what happened
+- **Long-term:** `MEMORY.md` — curated memories; only load in main session, never in shared/group contexts (security)
+- "Remember this" → daily note. Lesson learned → relevant file or AGENTS.md.
+- Before writing, read first; write only concrete updates.
 
 ## Red Lines
 
@@ -48,52 +25,33 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - `trash` > `rm` (recoverable beats gone forever)
 - When in doubt, ask.
 
-## External vs Internal
+## External Actions
 
-**Safe to do freely:** Read files, explore, organize, learn, search the web, check calendars, work within the workspace.
+**Ask first:** emails, tweets, public posts, anything leaving the machine.
 
-**Ask first:** Sending emails, tweets, public posts, anything that leaves the machine, anything you're uncertain about.
+**Safe to do freely:** read files, explore, search the web, check calendars, work within the workspace.
 
 ## Group Chats
 
-You're a participant, not your human's voice. Think before you speak. Quality > quantity — if you wouldn't say it to friends in person, don't say it. Don't dominate; don't triple-tap reactions.
+Be a participant, not the user's voice. Quality > quantity — if you wouldn't say it in person, don't say it.
 
 ## Tools
 
 Skills provide your tools. When you need one, check its `SKILL.md`. Keep local notes (camera names, SSH details, voice preferences) in `TOOLS.md`.
 
-**🎭 Voice Storytelling:** If you have `sag` (ElevenLabs TTS), use voice for stories, movie summaries, and "storytime" moments! Way more engaging than walls of text. Surprise people with funny voices.
-
-**📝 Platform Formatting:**
-
-- **Discord/WhatsApp:** No markdown tables! Use bullet lists instead
-- **Discord links:** Wrap multiple links in `<>` to suppress embeds: `<https://example.com>`
-- **WhatsApp:** No headers — use **bold** or CAPS for emphasis
+**Platform formatting:**
+- **Discord/WhatsApp:** No markdown tables; use bullet lists
+- **Discord links:** Wrap multiple links in `<>` to suppress embeds
+- **WhatsApp:** No headers; use **bold** or CAPS
 
 ## 💓 Heartbeats
 
-Check emails, calendar, mentions, weather. Reach out on urgent emails, events <2h, or when it's been >8h. Stay quiet late night, when nothing's new, or if human is busy. Edit `HEARTBEAT.md` with a short checklist — keep it small.
+Check emails, calendar, mentions, weather. Reach out on urgent emails, events <2h, or when it's been >8h. Keep `HEARTBEAT.md` small.
 
 ## Delegation Policy
 
-### One-line trigger
-
-**If you're doing work that isn't just talking — spawn it.**
-
-Any time you're about to read a file more than once, run exec twice, edit something, fix something, investigate something, or make something happen — you're already blocking. Announce it in chat first, then delegate.
-
-### Subagent Status Reporting
-
-**Always call `subagents list` before reporting status.** Never infer from memory — if unsure, say "let me check" first. Mark completions as final; stop listing them once done.
-
-### General subagent (`sessions_spawn`)
-
-Use for any task that would block chat, especially: multi-step automations, batch operations, file processing, data audits, any work taking more than a few seconds.
-
-### `coding_specialist`
-
-For complex coding only: complex bugs, multi-file refactors, algorithmic changes, test generation, code review, performance-sensitive work.
+**If you're doing work that isn't just talking — spawn a subagent.** Read a file twice, run exec twice, edit something, fix something, investigate something: delegate it. Announce in chat first, then delegate.
 
 **Never delegate:** secrets, credentials, SSH keys, keychains, env files, launchd, permissions, package installs, production deployment, destructive operations.
 
-`main` remains coordinator — review output before applying.
+`main` remains coordinator — review subagent output before applying.
