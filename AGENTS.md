@@ -210,51 +210,23 @@ Think of it like a human reviewing their journal and updating their mental model
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 
-## 🎛 Subagent Usage — Keep Main Agent Responsive
+## Delegation Policy
 
-Use `sessions_spawn` proactively for any work that would block responsiveness in chat:
+**Core rule:** If I'd have to wait before responding, spawn it instead.
 
-- Heavy coding tasks → spawn `coding_specialist` subagent
-- Multi-step automations → spawn isolated subagent with clear task/output/scope/verification brief
-- When a task could take more than a few seconds and the user might want to continue chatting
+### General subagent (`sessions_spawn`)
+Use for any task that would block chat, especially:
+- Multi-step automations (Hubitat controls, calendar checks)
+- Batch operations, file processing, data audits
+- Any work taking more than a few seconds
 
-**Rule:** If you'd have to wait for it to finish before responding, spawn it instead.
+Use `context:"fork"` only when the child needs current transcript; otherwise omit for isolation.
 
-## Make It Yours
+### `coding_specialist`
+For complex coding only:
+- Complex bugs, multi-file refactors, algorithmic changes
+- Test generation, code review, performance-sensitive work
 
-This is a starting point. Add your own conventions, style, and rules as you figure out what works.
+**Never delegate:** secrets, credentials, SSH keys, keychains, env files, launchd, permissions, package installs, production deployment, destructive operations.
 
-## Related
-
-- [Default AGENTS.md](/reference/AGENTS.default)
-
-## Coding Specialist Delegation
-
-A separate OpenClaw agent named `coding_specialist` is available for complex coding work.
-
-Delegate to `coding_specialist` for:
-
-- complex bugs
-- multi-file refactors
-- algorithmic changes
-- test generation
-- repeated test failures
-- code review
-- performance-sensitive changes
-- architecture-sensitive implementation planning
-
-Do not delegate to `coding_specialist` for:
-
-- secrets
-- credentials
-- env files
-- SSH keys
-- keychains
-- launchd
-- permissions
-- package installs
-- production deployment
-- network exposure
-- destructive file operations
-
-The `main` agent remains the coordinator. It should review specialist output before applying changes, running commands, or reporting final results to the user.
+`main` remains coordinator — review output before applying.
