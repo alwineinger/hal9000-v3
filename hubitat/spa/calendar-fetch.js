@@ -23,16 +23,14 @@ const cliDays = process.argv.includes('--days')
   : NaN;
 const days = Number.isFinite(cliDays) ? cliDays : Number(process.env.SPA_CALENDAR_DAYS || DEFAULT_DAYS);
 
-const ROOT = path.resolve(__dirname, '..', '..');
-
 function run(command, args) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     maxBuffer: 2 * 1024 * 1024,
+    // khal is in user pip3 bin
+    env: { ...process.env, PATH: process.env.PATH + ':/Users/oc_user/Library/Python/3.9/bin' },
   });
-  // khal exits 0 on success, even with no events; non-zero only on real errors
-  if (result.status !== 0 && result.status !== 0) {
-    // Treat non-zero exit as error; stderr may have diagnostic info
+  if (result.status !== 0) {
     const msg = result.stderr || result.stdout || `khal exited with ${result.status}`;
     console.error('[calendar-fetch] khal error:', msg);
     return '';
@@ -47,11 +45,14 @@ function run(command, args) {
  * Returns an array of raw parsed rows (may include empty/invalid lines).
  */
 function fetchAllEvents(days) {
-  // khal list accepts "today Nd" or just "Nd" for next N days
-  const rangeArg = `today ${days}d`;
-  const format = '{uid}|{start-date}|{start-time}|{end-date}|{end-time}|{title}';
+  const now = new Date();
+  const end = new Date(now);
+  end.setDate(end.getDate() + days);
+  const startStr = now.toISOString().split('T')[0];
+  const endStr = end.toISOString().split('T')[0];
 
-  const output = run('khal', ['list', '--format', format, rangeArg]);
+  const format = '{uid}|{start-date}|{start-time}|{end-date}|{end-time}|{title}';
+  const output = run('khal', ['list', startStr, endStr, '--format', format, '--day-format', '']);
   if (!output) return [];
 
   return output
@@ -68,7 +69,7 @@ function fetchAllEvents(days) {
         startTime: startTime.trim(),
         endDate: endDate.trim(),
         endTime: endTime.trim(),
-        title: titleParts.join('|').trim(), // title may contain pipe chars
+        title: titleParts.join('|').trim(),
       };
     })
     .filter(Boolean);
@@ -76,11 +77,8 @@ function fetchAllEvents(days) {
 
 /**
  * Build ISO datetime strings from khal date + time parts.
- * khal uses locale-formatted dates/times as configured in khal config.
- * We reconstruct ISO strings: start = "YYYY-MM-DD HH:MM", end = "YYYY-MM-DD HH:MM"
  */
 function buildIsoDateTime(dateStr, timeStr) {
-  // timeStr may be "HH:MM" or empty for all-day events
   if (!timeStr || timeStr === '00:00') {
     return `${dateStr}T00:00:00`;
   }
@@ -92,13 +90,11 @@ function buildIsoDateTime(dateStr, timeStr) {
  * { title, start, end, uid }
  */
 function normalizeEvent(raw) {
-  const start = buildIsoDateTime(raw.startDate, raw.startTime);
-  const end = buildIsoDateTime(raw.endDate, raw.endTime);
   return {
     uid: raw.uid,
     title: raw.title,
-    start,
-    end,
+    start: buildIsoDateTime(raw.startDate, raw.startTime),
+    end: buildIsoDateTime(raw.endDate, raw.endTime),
   };
 }
 

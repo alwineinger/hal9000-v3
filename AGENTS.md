@@ -2,6 +2,12 @@
 
 This folder is home. Treat it that way.
 
+## Hubitat Integration — Hard Rule
+
+**Never do hubitat code/config work in `main`.** Spawn a subagent every time. No exceptions, no "just this once". Diagnostics included — if the diagnostic leads to a file edit, it should have been subagented from the start.
+
+This applies to: control.js, scheduler.js, calendar-fetch.js, monitor.js, config.json, and any spa/pool/device automation code in this workspace.
+
 ## First Run
 
 If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.
