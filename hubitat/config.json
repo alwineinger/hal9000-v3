@@ -1,0 +1,27 @@
+{
+  "hub": {
+    "ip": "10.40.1.227",
+    "appId": "2321"
+  },
+  "devices": {
+    "poolMode":     "2140",
+    "spaMode":      "2141",
+    "heaterPower":  "2131",
+    "heaterAuto":   "2138",
+    "heaterRun":    "2137",
+    "poolTemp":     "2124",
+    "spaTemp":      "2125",
+    "ambientTemp":  "1451"
+  },
+  "guardrails": {
+    "riskyAliases": [
+      "heaterPower",
+      "heaterAuto",
+      "poolMode",
+      "spaMode"
+    ],
+    "requireConfirmForRisky": true,
+    "enforceHeaterAutoNeedsPower": true,
+    "requireModeExclusivity": true
+  }
+}

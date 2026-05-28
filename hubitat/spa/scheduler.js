@@ -22,7 +22,7 @@ const DATA_DIR = path.join(ROOT, 'data');
 
 const STATE_FILE = process.env.SPA_STATE_FILE || path.join(DATA_DIR, 'spa-state.json');
 const EVENTS_FILE = process.env.SPA_EVENTS_FILE || path.join(DATA_DIR, 'spa-events.json');
-const CALENDAR_SCRIPT = path.join(ROOT, 'skills', 'apple-calendar-ops', 'scripts', 'calendar_fetch.py');
+const CALENDAR_SCRIPT = path.join(__dirname, 'calendar-fetch.js');
 const CONTROL_SCRIPT = path.join(ROOT, 'hubitat', 'control.js');
 const HISTORY_FILE = process.env.SPA_HISTORY_FILE || path.join(DATA_DIR, 'spa-preheat-history.json');
 const OVERRIDE_FILE = process.env.SPA_PREHEAT_OVERRIDE_FILE || path.join(DATA_DIR, 'spa-preheat-override.json');
@@ -106,10 +106,11 @@ function runSpaMacro(macro) {
 }
 
 async function fetchCalendarEvents() {
-  const output = run('python3', [CALENDAR_SCRIPT, '--json']);
-  const parsed = JSON.parse(output);
+  const days = Number(process.env.SPA_CALENDAR_DAYS) || 2;
+  const output = run('node', [CALENDAR_SCRIPT, '--days', String(days)]);
+  const parsed = JSON.parse(output || '[]');
   // Filter to exact "Spa" or "spa" titled events only
-  const events = (parsed.events || []).filter(e => String(e.title || '').toLowerCase() === 'spa');
+  const events = (Array.isArray(parsed) ? parsed : []).filter(e => String(e.title || '').toLowerCase() === 'spa');
   return events;
 }
 
