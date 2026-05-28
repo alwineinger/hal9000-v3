@@ -26,6 +26,17 @@ git commit -m "describe changes"
 git push
 ```
 
+## OpenClaw Config Backup
+
+`~/.openclaw/openclaw.json` is backed up to `config/openclaw.json` in the hal9000-v3 repo. After any config change, commit and push it:
+```bash
+cp ~/.openclaw/openclaw.json ~/.openclaw/workspace/config/openclaw.json
+cd ~/.openclaw/workspace
+git add config/openclaw.json
+git commit -m "backup: openclaw.json"
+git push
+```
+
 ## Hubitat Spa Automation
 
 - Spa scheduling lives in: `hubitat/spa/`
