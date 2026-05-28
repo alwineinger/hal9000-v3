@@ -29,10 +29,13 @@ git push
 ## Hubitat Spa Automation
 
 - Spa scheduling lives in: `hubitat/spa/`
-- Entry point: `hubitat/spa-calendar.js`
+- Entry point: `hubitat/spa/scheduler.js` (launchd-driven, every 15 min)
+- Primary calendar: `hubitat/spa/calendar-fetch.js` (khal/vdirsyncer)
+- Alt calendar: `hubitat/spa/calendar-direct.js` (direct iCloud CalDAV via curl + node-ical)
 - Skill doc: `skills/hubitat/SKILL.md`
 - Device state read via: `hubitat/monitor.js` (external dependency)
 - Device control via: `hubitat/control.js` (macros: spaHeatStart, spaHeatStop, etc.)
+- launchd plist: `~/Library/LaunchAgents/ai.openclaw.spa-scheduler.plist` (uses `StartInterval`, not `TimerInterval`)
 
 ## Things I've Learned
 
@@ -81,6 +84,8 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 | 226 | Office Light |
 
 ## Operational Lessons
+
+- Weather fetch wired in via `spa/weather-fetch.js` using wttr.in for Tampa, FL (lat/lon near 15901 Layton Ct, Tampa FL 33647). Location param: Tampa,FL. Falls back to null on failure — scheduler never blocks on weather.
 
 - **Hubitat integration always use subagents** — Andy explicitly directed "use subagents for all 3" on hubitat work. That pattern applies to any hubitat scripting, config, or device control tasks. Even small edits go through a subagent unless the change is truly trivial (one-liner, no logic).
 

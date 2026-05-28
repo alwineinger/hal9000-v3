@@ -9,11 +9,13 @@ The spa automation ensures the spa reaches 102°F by the start of a calendar "Sp
 
 **Components:**
 - `hubitat/spa/scheduler.js` — state machine orchestrator, reads state from files, calls control.js macros
-- `hubitat/spa/calendar-fetch.js` — queries khal for "Spa" events (next N days), outputs JSON
+- `hubitat/spa/calendar-fetch.js` — queries khal for "Spa" events (next N days), outputs JSON (primary)
+- `hubitat/spa/calendar-direct.js` — direct iCloud CalDAV via curl + node-ical (alternative, no khal/vdirsyncer dependency)
 - `hubitat/spa/control.js` — Hubitat device macros: spaHeatStart, spaHeatStop, poolNormal, officeFlash
 - `hubitat/spa/approval.js` — weather approval state machine
 - `hubitat/spa/telegram.js` — sends Telegram approval prompts
 - `hubitat/spa/approval-poll.js` — polls Telegram for yes/no replies to approval prompts
+- `hubitat/spa/weather-fetch.js` — fetches weather from wttr.in for preheat decision
 
 **State files (all in data/):**
 - `spa-state.json` — main scheduler state with phase, nextSpaEvent, activePreheat
@@ -54,7 +56,20 @@ The scheduler has 4 explicit phases:
 - Approval sent via Telegram, reply polled on next launchd cycle
 - Timeout: 30 min, then preheat is skipped
 
-### Device Control
+### Calendar Integration
+
+**Primary: calendar-fetch.js (khal)**
+- Uses khal to query vdirsyncer-synced iCloud calendars
+- No `-a` flag needed — khal's title filter isolates "Spa" events
+- Synced path: `~/.local/share/vdirsyncer/calendars/`
+- Run: `node calendar-fetch.js --days N` → JSON array of `{uid, title, start, end}`
+
+**Alternative: calendar-direct.js (CalDAV)**
+- Direct iCloud CalDAV via curl — no vdirsyncer/khal dependency
+- Uses `@xmldom/xmldom` for XML parsing, `node-ical` for ICS parsing
+- Queries `https://caldav.icloud.com/` directly with app-specific password
+- Same JSON output contract as calendar-fetch.js
+- Useful when vdirsyncer/khal pipeline is unavailable
 - `spaHeatStart`: sets spaMode=on, heaterPower=on, heaterAuto=on — PL-PLUS takes over from there
 - `spaHeatStop`: sets spaMode=off, heaterAuto=off — returns to pool mode
 - No ongoing control during preheat — PL-PLUS is autonomous
@@ -71,9 +86,10 @@ The scheduler has 4 explicit phases:
 | 1451 | Lanai Temp/Humidity (preferred ambient) |
 
 ### Launchd Integration
-- launchd fires every 15 minutes
+- launchd fires every 15 minutes via `StartInterval` (not `TimerInterval` — macOS requires `StartInterval`)
 - launchd runs: `node hubitat/spa/scheduler.js`
-- Scheduler is stateless — reads/writes data/spa-state.json for all context
+- Plist: `~/Library/LaunchAgents/ai.openclaw.spa-scheduler.plist`
+- Scheduler is stateless — reads/writes `data/spa-state.json` for all context
 - launchd does NOT need to track active preheat — scheduler does via state file
 
 ### Design Decisions

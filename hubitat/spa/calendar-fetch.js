@@ -51,10 +51,10 @@ function fetchAllEvents(days) {
   const startStr = now.toISOString().split('T')[0];
   const endStr = end.toISOString().split('T')[0];
 
-  // iCloud calendar (oc_wineinger@icloud.com) - contains Spa events
-  const ICLOUD_CALENDAR = 'ee18efda04276d12c4ff80782c8aad44fc2e4df9d6bb4bbb90f6fe991a9594b0';
   const format = '{uid}|{start-date}|{start-time}|{end-date}|{end-time}|{title}';
-  const output = run('khal', ['list', '-a', ICLOUD_CALENDAR, startStr, endStr, '--format', format, '--day-format', '']);
+  // Note: -a UUID flag removed — khal list (all calendars) + {title} filter works correctly.
+  // vdirsyncer syncs iCloud → ~/.local/share/khal/ so all calendars are already accessible.
+  const output = run('khal', ['list', startStr, endStr, '--format', format, '--day-format', '']);
   if (!output) return [];
 
   return output

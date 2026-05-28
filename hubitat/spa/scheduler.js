@@ -12,6 +12,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { readSnapshot } = require(path.join(__dirname, '..', 'monitor'));
 const { loadConfig } = require('./config');
+const { fetchWeather } = require('./weather-fetch');
 const { isWeatherRisky } = require('./weather');
 const { calculateLeadMinutes } = require('./preheat');
 const { buildPreheatSession, updateSessionObservation, finalizeSession } = require('./session');
@@ -181,13 +182,16 @@ async function main() {
   // Fetch current device snapshot once per run
   const currentState = await readSnapshot();
 
+  // Fetch current weather for risk evaluation
+  const weather = fetchWeather() ?? currentState?.weather ?? null;
+
   // ── PHASE 1: IDLE ─────────────────────────────────────────────────────────
   if (phase === 'idle' && !prev?.activePreheat) {
     const events = await fetchCalendarEvents(7);
 
     if (!events.length) {
       // No Spa events — stay idle
-      saveState(buildState({ phase: 'idle', weather: currentState?.weather ?? null }));
+      saveState(buildState({ phase: 'idle', weather }));
       return;
     }
 
@@ -196,7 +200,6 @@ async function main() {
     const nextSpaEndMs   = Date.parse(nextSpaEvent.end);
 
     const history = readHistory();
-    const weather = currentState?.weather ?? null;
 
     const leadMinutes = calculateLeadMinutes({
       spaTempF: currentState?.spaTempF,
@@ -233,7 +236,6 @@ async function main() {
     }
 
     // Time to start preheat — check weather risk
-    const weather = currentState?.weather ?? prev?.weather ?? null;
     const weatherRisk = isWeatherRisky(weather);
 
     if (weatherRisk) {
@@ -338,7 +340,7 @@ async function main() {
       writeHistory(history);
 
       // Return to idle, no nextSpaEvent, no activePreheat
-      saveState(buildState({ phase: 'idle', weather: currentState?.weather ?? null }));
+      saveState(buildState({ phase: 'idle', weather: weather ?? null }));
       return;
     }
 
@@ -365,7 +367,7 @@ async function main() {
       const activePreheat = buildPreheatSession({
         nextSpaEvent: prev.nextSpaEvent,
         checkedAt,
-        weather: currentState?.weather ?? null,
+        weather,
         currentState: confirmedState,
         leadMinutes: prev.leadMinutes,
         config: cfg
@@ -393,7 +395,7 @@ async function main() {
       // Denied — clear event, go idle
       saveState(buildState({
         phase: 'idle',
-        weather: currentState?.weather ?? null,
+        weather: weather ?? null,
         weatherApproval: updatedApproval
       }));
       return;
@@ -405,7 +407,7 @@ async function main() {
   }
 
   // Unknown / stale phase — reset gracefully
-  saveState(buildState({ phase: 'idle', weather: currentState?.weather ?? null }));
+  saveState(buildState({ phase: 'idle', weather: weather ?? null }));
 }
 
 if (require.main === module) {
