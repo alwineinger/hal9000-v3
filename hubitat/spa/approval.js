@@ -8,7 +8,7 @@ const { buildWeatherApprovalPrompt } = require('./weather');
 
 function approvalMatchesContext(approval, nextSpaEvent, preheatStartMs) {
   if (!approval || !nextSpaEvent || !Number.isFinite(preheatStartMs)) return false;
-  return approval.eventId === nextSpaEvent.id && approval.preheatStart === new Date(preheatStartMs).toISOString();
+  return approval.eventId === nextSpaEvent.uid && approval.preheatStart === new Date(preheatStartMs).toISOString();
 }
 
 function approvalExpiresMs(approval) {
@@ -24,7 +24,7 @@ function createPendingApproval({ nextSpaEvent, preheatStartMs, weather, reason }
   if (!nextSpaEvent || !Number.isFinite(preheatStartMs)) return null;
 
   return {
-    eventId: nextSpaEvent.id,
+    eventId: nextSpaEvent.uid,
     preheatStart: new Date(preheatStartMs).toISOString(),
     status: 'pending',
     reason: reason || 'Weather conditions indicate rain or storms are present or likely.',
