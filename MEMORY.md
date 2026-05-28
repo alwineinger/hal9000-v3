@@ -41,6 +41,11 @@ git push
 3. The hubitat skill doesn't exist as a standalone skill in OpenClaw — I created the SKILL.md as part of the v3 repo
 4. PAT is `github…2C1Y` (last 4 chars visible in filename)
 
+### Spa Automation Design Principle
+
+Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating autonomously. The openclaw scheduler's only post-start responsibilities: (1) weather approval before calling `spaHeatStart`, (2) `spaHeatStop` at event end to return to pool mode. No ongoing openclaw involvement during preheat.
+
+
 ## Stable Preferences
 
 - User is Andy.
@@ -50,12 +55,30 @@ git push
 
 ## Home Automation Context (Hubitat)
 
+- Hubitat integrated with **Hayward PL-PLUS** pool automation controller via RS485 (code in Andy's hubitat/aqualogic repos). PL-PLUS handles heater behavior autonomously once spa mode + heater relay + heater auto are all enabled — no ongoing openclaw control needed during preheat.
+- **Pool/Spa key behavior:** When `spaMode on` + `heaterPower on` + `heaterAuto on` → PL-PLUS manages heating to target temp on its own. No re-invocation needed during preheat. Spa automation's only end-of-event job: return to pool mode (`spaMode off`, `heaterAuto off`).
+- Spa preheat workflow: launchd polls khal every 15 min → detects upcoming "Spa" event → calculates lead time → calls `spaHeatStart` macro at preheat window → PL-PLUS handles heating → launchd calls `spaHeatStop` macro at event end to return to pool mode.
+- Weather approval: if storms/rain present at preheat start, scheduler requests Telegram approval before calling `spaHeatStart`. Once approved, no more approval polling needed (heater is autonomous).
 - Hubitat Maker API in use for device control.
 - Safety-critical controls include pool/spa mode and heater relays.
 - Guardrails are required for risky actions and should remain default behavior.
 - Device 2126 is the pool-controller air sensor at the equipment pad (sun spikes); prefer device 1451 (lanai temp/humidity under the eave) for actual lanai air readings until 2126 gets shaded.
 - Device 2137 ("Lanai Heater Running") mirrors the pool controller's heater command and is read-only; use it to confirm heater calls.
 - Virtual buttons 452/456/457/458/459/460/461 are scene triggers (Alarm Cancel/Off, Goodbye, I'm Back, Good Night!, Good Morning, Kids Home Alone) and must only be invoked when Andy asks.
+
+## Pool/Spa Device IDs
+| ID | Label |
+|---|---|
+| 2124 | Pool Temp |
+| 2125 | Spa Temp |
+| 2126 | Lanai Pool Air Temp (equipment pad, afternoon sun) |
+| 1451 | Lanai Temp/Humidity (under eave, preferred ambient) |
+| 2131 | Lanai Heater Power (Aux2) |
+| 2137 | Lanai Heater Running |
+| 2138 | Lanai Heater Auto |
+| 2140 | Lanai Pool Mode |
+| 2141 | Lanai Spa Mode |
+| 226 | Office Light |
 
 ## Operational Lessons
 
