@@ -100,6 +100,6 @@ function normalizeEvent(raw) {
 
 // Main
 const rawEvents = fetchAllEvents(days);
-const normalized = rawEvents.map(normalizeEvent);
+const normalized = rawEvents.map(normalizeEvent).filter(event => event.title.toLowerCase() === 'spa');
 
 process.stdout.write(JSON.stringify(normalized, null, 2) + '\n');
