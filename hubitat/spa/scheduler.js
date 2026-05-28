@@ -14,7 +14,7 @@ const { loadConfig } = require('./config');
 const { isWeatherRisky } = require('./weather');
 const { calculateLeadMinutes, resolvePreheatWindow } = require('./preheat');
 const { buildPreheatSession, updateSessionObservation, finalizeSession } = require('./session');
-const { approvalMatchesContext, approvalExpiresMs, approvalPromptSent, createPendingApproval, stampApprovalPrompt } = require('./approval');
+const { approvalMatchesContext, approvalExpiresMs, approvalPromptSent, createPendingApproval, decideFromPollResult } = require('./approval');
 const { sendWeatherApprovalPrompt } = require('./telegram');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -27,6 +27,7 @@ const CONTROL_SCRIPT = path.join(ROOT, 'hubitat', 'control.js');
 const HISTORY_FILE = process.env.SPA_HISTORY_FILE || path.join(DATA_DIR, 'spa-preheat-history.json');
 const OVERRIDE_FILE = process.env.SPA_PREHEAT_OVERRIDE_FILE || path.join(DATA_DIR, 'spa-preheat-override.json');
 const WEATHER_APPROVAL_FILE = process.env.SPA_WEATHER_APPROVAL_FILE || path.join(DATA_DIR, 'spa-weather-approval.json');
+const APPROVAL_POLL_SCRIPT = path.join(__dirname, 'approval-poll.js');
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -66,6 +67,27 @@ function readWeatherApproval() {
 
 function writeWeatherApproval(approval) {
   writeJson(WEATHER_APPROVAL_FILE, approval);
+}
+
+/**
+ * Check the approval file via approval-poll.js --check and return the result.
+ * Returns null if still pending / expired / no reply yet.
+ */
+function checkWeatherApprovalPoll() {
+  const result = spawnSync('node', [APPROVAL_POLL_SCRIPT, '--check'], {
+    encoding: 'utf8',
+    maxBuffer: 512 * 1024,
+    timeout: 20000
+  });
+  if (result.status === 0) {
+    try {
+      return JSON.parse((result.stdout || '').trim());
+    } catch {
+      return null;
+    }
+  }
+  // status 1 = still pending, no approval file, etc. — treat as null
+  return null;
 }
 
 function readOverride() {
@@ -209,7 +231,25 @@ async function main() {
     }
   }
 
-  // 8. Execute preheat if safe
+  // 8. Poll for Telegram reply if approval is pending
+  if (shouldPreheat && needsSpaHeat && weatherGateActive && weatherApproval?.status === 'pending' && approvalPromptSent(weatherApproval)) {
+    const pollResult = checkWeatherApprovalPoll();
+    if (pollResult) {
+      if (pollResult.status === 'approved') {
+        weatherApproval = decideFromPollResult(weatherApproval, 'yes', 'telegram-reply', nowMs);
+        writeWeatherApproval(weatherApproval);
+        weatherGateActive = false; // proceed to preheat
+      } else if (pollResult.status === 'denied' || pollResult.status === 'expired') {
+        weatherApproval = decideFromPollResult(weatherApproval, 'no', pollResult.status === 'expired' ? 'expired' : 'telegram-reply', nowMs);
+        writeWeatherApproval(weatherApproval);
+        weatherGateActive = false;
+        action = 'weather-denied';
+      }
+      // else still pending — wait
+    }
+  }
+
+  // 9. Execute preheat if safe (weather gate cleared)
   if (shouldPreheat && needsSpaHeat && !weatherGateActive) {
     action = 'spaHeatStart';
     actionOutput = runSpaMacro('spaHeatStart');

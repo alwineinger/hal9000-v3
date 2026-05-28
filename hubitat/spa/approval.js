@@ -59,6 +59,25 @@ function decideApproval(approval, decision, source, nowMs) {
   };
 }
 
+/**
+ * Resolve a pending approval from polling/check result.
+ * Called by scheduler.js after approval-poll.js reports a user reply or timeout.
+ *
+ * @param {object} approval  - current approval object
+ * @param {'yes'|'no'} decision - 'yes' = approved, 'no' = denied
+ * @param {string} source     - 'telegram-reply' | 'expired' | 'manual'
+ * @param {number} nowMs      - current timestamp ms
+ */
+function decideFromPollResult(approval, decision, source, nowMs) {
+  if (!approval || approval.status !== 'pending') return approval;
+  return {
+    ...approval,
+    status: decision === 'yes' ? 'approved' : 'denied',
+    decisionAt: new Date(nowMs).toISOString(),
+    decisionSource: source || 'poll-result'
+  };
+}
+
 module.exports = {
   approvalMatchesContext,
   approvalExpiresMs,
@@ -66,4 +85,5 @@ module.exports = {
   createPendingApproval,
   stampApprovalPrompt,
   decideApproval,
+  decideFromPollResult,
 };
