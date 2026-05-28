@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.DS_Store
+data/spa-state.json
+data/spa-weather-approval.json
+data/spa-preheat-override.json
+data/spa-preheat-history.json

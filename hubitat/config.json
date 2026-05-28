@@ -5,7 +5,13 @@
   },
   "devices": {
     "poolMode":     "2140",
-    "spaMode":      "2141",
+    "spaScheduler": {
+    "pollIntervalMin": 15,
+    "lookAheadDays": 7,
+    "preheatLookAheadMin": 15,
+    "approvalTimeoutMin": 30
+  },
+  "spaMode":      "2141",
     "heaterPower":  "2131",
     "heaterAuto":   "2138",
     "heaterRun":    "2137",
