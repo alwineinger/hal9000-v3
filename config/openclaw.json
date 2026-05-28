@@ -10,7 +10,8 @@
         },
         "openrouter/minimax/minimax-m2.5": {},
         "openrouter/deepseek/deepseek-v4-pro": {},
-        "openrouter/x-ai/grok-4.3": {}
+        "openrouter/x-ai/grok-4.3": {},
+        "openrouter/x-ai/grok-build-0.1": {}
       },
       "model": {
         "primary": "openrouter/minimax/minimax-m2.7",
@@ -80,6 +81,9 @@
         "sms.send",
         "sms.search"
       ]
+    },
+    "remote": {
+      "token": "5b4b6364e657a2ccbc3b8b3354e24f9243a9996a5aa25f7f"
     }
   },
   "session": {
@@ -148,14 +152,14 @@
     }
   },
   "wizard": {
-    "lastRunAt": "2026-05-28T15:42:59.344Z",
+    "lastRunAt": "2026-05-28T20:58:50.374Z",
     "lastRunVersion": "2026.5.27",
     "lastRunCommand": "configure",
     "lastRunMode": "local"
   },
   "meta": {
     "lastTouchedVersion": "2026.5.27",
-    "lastTouchedAt": "2026-05-28T18:48:18.857Z"
+    "lastTouchedAt": "2026-05-28T21:06:54.735Z"
   },
   "secrets": {
     "providers": {
@@ -210,7 +214,7 @@
         "enabled": false
       },
       "clawhub": {
-        "enabled": false
+        "enabled": true
       },
       "coding-agent": {
         "enabled": false
