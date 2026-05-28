@@ -6,8 +6,6 @@ This folder is home. Treat it that way.
 
 **Never do hubitat code/config work in `main`.** Spawn a subagent every time. No exceptions, no "just this once". Diagnostics included — if the diagnostic leads to a file edit, it should have been subagented from the start.
 
-This applies to: control.js, scheduler.js, calendar-fetch.js, monitor.js, config.json, and any spa/pool/device automation code in this workspace.
-
 ## First Run
 
 If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.
@@ -52,7 +50,7 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 
 ## External vs Internal
 
-**Safe to do freely:** Read files, explore, organize, learn, search the web, check calendars, work within this workspace.
+**Safe to do freely:** Read files, explore, organize, learn, search the web, check calendars, work within the workspace.
 
 **Ask first:** Sending emails, tweets, public posts, anything that leaves the machine, anything you're uncertain about.
 
@@ -78,22 +76,24 @@ Check emails, calendar, mentions, weather. Reach out on urgent emails, events <2
 
 ## Delegation Policy
 
-**Core rule:** If I'd have to wait before responding, spawn it instead.
+### One-line trigger
 
-### General subagent (`sessions_spawn`)
-Use for any task that would block chat, especially: multi-step automations, batch operations, file processing, data audits, any work taking more than a few seconds.
+**If you're doing work that isn't just talking — spawn it.**
 
-Use `context:"fork"` only when the child needs current transcript; otherwise omit for isolation.
+Any time you're about to read a file more than once, run exec twice, edit something, fix something, investigate something, or make something happen — you're already blocking. Announce it in chat first, then delegate.
 
 ### Subagent Status Reporting
 
 **Always call `subagents list` before reporting status.** Never infer from memory — if unsure, say "let me check" first. Mark completions as final; stop listing them once done.
 
+### General subagent (`sessions_spawn`)
+
+Use for any task that would block chat, especially: multi-step automations, batch operations, file processing, data audits, any work taking more than a few seconds.
+
 ### `coding_specialist`
+
 For complex coding only: complex bugs, multi-file refactors, algorithmic changes, test generation, code review, performance-sensitive work.
 
 **Never delegate:** secrets, credentials, SSH keys, keychains, env files, launchd, permissions, package installs, production deployment, destructive operations.
-
-**Hubitat integration** — all hubitat scripting, config, and device control code: use a subagent. Andy explicitly directed "use subagents for all 3" for hubitat work; that pattern applies to any follow-up hubitat tasks unless the change is truly trivial (one-liner, no logic).
 
 `main` remains coordinator — review output before applying.
