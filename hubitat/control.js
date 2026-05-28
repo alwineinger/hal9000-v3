@@ -31,7 +31,11 @@ function loadToken() {
     '.openclaw/credentials/hubitat-token'
   );
   const tokenPath = process.env.HUBITAT_TOKEN_FILE || defaultTokenPath;
-  if (fs.existsSync(tokenPath)) return fs.readFileSync(tokenPath, 'utf8').trim();
+  if (fs.existsSync(tokenPath)) {
+    const raw = fs.readFileSync(tokenPath, 'utf8').trim();
+    // Support both raw tokens and "access_token=..." format
+    return raw.startsWith('access_token=') ? raw.split('access_token=')[1] : raw;
+  }
   console.error('Missing HUBITAT_TOKEN (set env or HUBITAT_TOKEN_FILE)');
   process.exit(1);
 }
@@ -56,6 +60,23 @@ function apiGet(p) {
         catch { resolve(body); }
       });
     }).on('error', reject);
+  });
+}
+
+function apiPost(p) {
+  return new Promise((resolve, reject) => {
+    const fullPath = `/apps/api/${cfg.hub.appId}${p}?access_token=${token}`;
+    const req = http.request({ host: cfg.hub.ip, path: fullPath, method: 'POST', timeout: 10000 }, (res) => {
+      let body = '';
+      res.on('data', (d) => (body += d));
+      res.on('end', () => {
+        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${body}`));
+        try { resolve(JSON.parse(body)); }
+        catch { resolve(body); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
   });
 }
 
@@ -114,7 +135,7 @@ async function setSwitch(alias, cmd, opts = {}) {
   const id = cfg.devices[alias];
   if (!id) throw new Error(`Unknown alias: ${alias}`);
   await enforce(alias, cmd, opts);
-  const result = await apiGet(`/devices/${id}/${cmd}`);
+  const result = await apiPost(`/devices/${id}/${cmd}`);
   return { alias, cmd, ok: true, result };
 }
 
@@ -203,6 +224,17 @@ async function runMacro(name) {
     steps.push(await setSwitch('heaterAuto', 'off', opts));
     await sleep(SPA_STEP_DELAY_MS);
     steps.push(await ensureValveState('pool', opts));
+    return steps;
+  }
+
+  if (name === 'officeFlash') {
+    // Flash the office light 3 times.
+    for (let i = 0; i < 3; i++) {
+      steps.push(await setSwitch('officeLight', 'off', opts));
+      await sleep(250);
+      steps.push(await setSwitch('officeLight', 'on', opts));
+      await sleep(250);
+    }
     return steps;
   }
 

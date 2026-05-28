@@ -11,7 +11,8 @@
     "heaterRun":    "2137",
     "poolTemp":     "2124",
     "spaTemp":      "2125",
-    "ambientTemp":  "1451"
+    "ambientTemp":  "1451",
+    "officeLight":  "226"
   },
   "guardrails": {
     "riskyAliases": [
