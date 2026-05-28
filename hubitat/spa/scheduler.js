@@ -176,7 +176,7 @@ async function main() {
   const checkedAt = new Date(nowMs).toISOString();
 
   // Load existing state (persisted across runs)
-  const prev = loadState();
+  let prev = loadState();
   const phase = prev?.phase || 'idle';
 
   // Fetch current device snapshot once per run
@@ -186,7 +186,7 @@ async function main() {
   const weather = fetchWeather() ?? currentState?.weather ?? null;
 
   // ── PHASE 1: IDLE ─────────────────────────────────────────────────────────
-  if (phase === 'idle' && !prev?.activePreheat) {
+  if (phase === 'idle' && !prev?.activePreheat && !prev?.nextSpaEvent) {
     const events = await fetchCalendarEvents(7);
 
     if (!events.length) {
@@ -214,7 +214,7 @@ async function main() {
     const overrideStartAtMs = override?.startAt ? Date.parse(override.startAt) : null;
     const preheatStartMs = overrideStartAtMs ?? (nextSpaStartMs - (leadMinutesSafe * 60 * 1000));
 
-    saveState(buildState({
+    prev = saveState(buildState({
       phase: 'idle',
       nextSpaEvent,
       preheatStartMs,
@@ -222,7 +222,7 @@ async function main() {
       weather,
       overrideStartAt: override?.startAt ?? null
     }));
-    return;
+    // Fall through to Phase 2 so it can immediately evaluate preheat readiness
   }
 
   // ── PHASE 2: PREHEAT_PENDING ──────────────────────────────────────────────
