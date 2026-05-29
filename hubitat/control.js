@@ -122,7 +122,7 @@ async function enforce(alias, cmd, opts = {}) {
       const pool = await getSwitch('poolMode');
       if (pool === 'on') {
         throw new Error(
-          "Guardrail: spaMode on blocked while spaMode is already on. Use --allow-spillover to override."
+          "Guardrail: spaMode on blocked while poolMode is already on. Use --allow-spillover to override."
         );
       }
     }

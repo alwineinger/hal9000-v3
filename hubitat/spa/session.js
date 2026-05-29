@@ -2,6 +2,11 @@
  * spa/session.js
  * Pure helpers for creating, updating, and finalizing preheat observation sessions.
  * No I/O, no network, no LLM.
+ *
+ * Observation conventions:
+ *  - elapsedMinutes        Total minutes since session.startedAt (non-accumulating)
+ *  - observedMinutes       Same as last observation's elapsedMinutes
+ *  - observedRateFPerHour  Delta-F since previous observation, annualized
  */
 
 const { bucket, round } = require('./utils');
@@ -10,11 +15,12 @@ function buildPreheatSession({ nextSpaEvent, checkedAt, weather, currentState, l
   if (!nextSpaEvent) return null;
 
   const target = config.targetTempF ?? 102;
-  const sessionId = `${nextSpaEvent.id}:${checkedAt}`;
+  // Calendar events use `uid` not `id`
+  const sessionId = `${nextSpaEvent.uid}:${checkedAt}`;
 
   return {
     sessionId,
-    eventId: nextSpaEvent.id,
+    eventId: nextSpaEvent.uid,
     eventTitle: nextSpaEvent.title,
     eventStart: nextSpaEvent.start,
     eventEnd: nextSpaEvent.end,
@@ -51,7 +57,8 @@ function updateSessionObservation(session, { checkedAt, currentState }) {
     ? session.observations[session.observations.length - 1]
     : null;
 
-  const elapsedMinutes = prevObs
+  // Delta since the previous observation (for per-tick rate)
+  const deltaMinutes = prevObs
     ? Math.max(0, Math.round((Date.parse(checkedAt) - Date.parse(prevObs.capturedAt)) / 60000))
     : 0;
 
@@ -59,11 +66,17 @@ function updateSessionObservation(session, { checkedAt, currentState }) {
     ? currentState.spaTempF - prevObs.spaTempF
     : 0;
 
-  const rate = elapsedMinutes > 0 ? round((deltaF / elapsedMinutes) * 60, 2) : null;
+  const rate = deltaMinutes > 0 ? round((deltaF / deltaMinutes) * 60, 2) : null;
+
+  // Total elapsed since session start (non-accumulating — avoids the exponential feedback loop)
+  const sessionStartMs = Date.parse(session.startedAt);
+  const totalElapsedMinutes = Number.isFinite(sessionStartMs)
+    ? Math.max(0, Math.round((Date.parse(checkedAt) - sessionStartMs) / 60000))
+    : 0;
 
   const newObs = {
     capturedAt: checkedAt,
-    elapsedMinutes: (session.observedMinutes || 0) + elapsedMinutes,
+    elapsedMinutes: totalElapsedMinutes,
     spaTempF: currentState?.spaTempF ?? null,
     observedRateFPerHour: rate
   };
@@ -73,17 +86,15 @@ function updateSessionObservation(session, { checkedAt, currentState }) {
     observations: [...(session.observations || []), newObs],
     lastObservedAt: checkedAt,
     lastObservedSpaTempF: currentState?.spaTempF ?? null,
+    observedMinutes: totalElapsedMinutes
   };
 
-  const totalElapsed = updated.observations.reduce((sum, o) => sum + (o.elapsedMinutes || 0), 0);
-  updated.observedMinutes = totalElapsed;
-
-  // recompute overall observed rate from first to last valid observation
+  // Recompute overall observed rate from first to last valid observation
   const firstValid = updated.observations.find(o => Number.isFinite(o.spaTempF));
   const lastValid = [...updated.observations].reverse().find(o => Number.isFinite(o.spaTempF));
-  if (firstValid && lastValid && totalElapsed >= 15) {
+  if (firstValid && lastValid && totalElapsedMinutes >= 15) {
     const totalDelta = lastValid.spaTempF - firstValid.spaTempF;
-    updated.observedRateFPerHour = round((totalDelta / totalElapsed) * 60, 2);
+    updated.observedRateFPerHour = round((totalDelta / totalElapsedMinutes) * 60, 2);
   }
 
   return updated;

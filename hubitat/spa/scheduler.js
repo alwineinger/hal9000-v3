@@ -320,9 +320,16 @@ async function main() {
   // ── PHASE 3: HEATING ───────────────────────────────────────────────────────
   if (phase === 'heating' && prev?.activePreheat) {
     const nextSpaEndMs = prev.nextSpaEvent ? Date.parse(prev.nextSpaEvent.end) : null;
+    const sessionStartMs = Date.parse(prev.activePreheat?.startedAt);
+    const maxHeatMs = Number.isFinite(sessionStartMs)
+      ? sessionStartMs + (cfg.maxOverrideLeadHours ?? 12) * 3600_000
+      : null;
 
-    if (nextSpaEndMs && nowMs < nextSpaEndMs) {
-      // Still within event window — update observation, stay heating
+    const eventEnded = nextSpaEndMs && nowMs >= nextSpaEndMs;
+    const exceededMax = maxHeatMs && nowMs >= maxHeatMs;
+
+    if (!eventEnded && !exceededMax) {
+      // Still within event window and max-duration bound — update observation, stay heating
       const updated = updateSessionObservation(prev.activePreheat, { checkedAt, currentState });
 
       const history = readHistory();
@@ -333,23 +340,25 @@ async function main() {
       return;
     }
 
-    if (nextSpaEndMs && nowMs >= nextSpaEndMs) {
-      // Event ended — stop heating and clear
+    // Event ended or max duration exceeded — stop heating and finalize
+    const completionReason = exceededMax && !eventEnded ? 'max-duration' : 'event-ended';
+
+    try {
       runSpaMacro('spaHeatStop');
-
-      const finalized = finalizeSession(prev.activePreheat, 'event-ended', { checkedAt });
-
-      const history = readHistory();
-      pushSession(history, finalized);
-      writeHistory(history);
-
-      // Return to idle, no nextSpaEvent, no activePreheat
-      saveState(buildState({ phase: 'idle', weather: weather ?? null }));
-      return;
+    } catch (err) {
+      // spaHeatStop failure should not block finalization; log and continue
+      console.error(`
+[spa-check] WARNING: spaHeatStop failed: ${err.message}`);
     }
 
-    // No end time — stay heating (PL-PLUS handles it)
-    saveState({ ...prev, checkedAt });
+    const finalized = finalizeSession(prev.activePreheat, completionReason, { checkedAt });
+
+    const history = readHistory();
+    pushSession(history, finalized);
+    writeHistory(history);
+
+    // Return to idle, no nextSpaEvent, no activePreheat
+    saveState(buildState({ phase: 'idle', weather: weather ?? null }));
     return;
   }
 
