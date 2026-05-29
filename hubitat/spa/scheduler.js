@@ -222,7 +222,10 @@ async function main() {
       weather,
       overrideStartAt: override?.startAt ?? null
     }));
-    // Fall through to Phase 2 so it can immediately evaluate preheat readiness
+
+    // Phase 1 done — state saved, preheat window set.
+    // Phase 2 will evaluate preheat readiness on the next launchd firing (15 min later).
+    return;
   }
 
   // ── PHASE 2: PREHEAT_PENDING ──────────────────────────────────────────────

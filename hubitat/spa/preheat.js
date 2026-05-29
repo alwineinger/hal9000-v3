@@ -62,22 +62,31 @@ function calculateLeadMinutes({ spaTempF, ambientF, weatherDesc, history, config
   const gap = Math.max(0, target - spaTempF);
   if (gap === 0) return 0;
 
-  const weather = {
-    tempF: ambientF,
-    desc: weatherDesc
-  };
+  const weather = { tempF: ambientF, desc: weatherDesc };
+  const sessions = Array.isArray(history?.sessions) ? history.sessions : [];
 
-  // weather penalty from weather.js is applied by caller; here we just compute base
-  const base = Math.max(minRate, baseRate);
+  // Primary rate: weighted historical blend (requires score > 0.15)
   const historicalRate = calculateHistoricalRate(history, {
     startSpaBucket: bucket(spaTempF, 2),
     ambientBucket: bucket(ambientF, 5),
     weatherDesc
   });
 
-  const effectiveRate = historicalRate != null ? historicalRate : base;
-  const minutes = Math.ceil((gap / effectiveRate) * 60) + buffer;
-  return Math.max(0, minutes);
+  // Fallback: most recent session's observed rate (regardless of score).
+  // Use when historical rate is null and we have a real observation to work from.
+  const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
+  const lastObservedRate = (lastSession && Number.isFinite(lastSession.observedRateFPerHour) && lastSession.observedMinutes >= 15)
+    ? lastSession.observedRateFPerHour
+    : null;
+
+  // Base rate (optimistic) is floored by minRate. Observed rates are never capped —
+  // a measurement like 1.44°F/hr from a real session is more trustworthy than the floor.
+  const effectiveRate = (historicalRate != null)
+    ? historicalRate
+    : (lastObservedRate != null ? lastObservedRate : Math.max(minRate, baseRate));
+
+  const minutes = Math.max(0, Math.ceil((gap / Math.max(minRate, effectiveRate)) * 60)) + buffer;
+  return minutes;
 }
 
 function resolvePreheatWindow({ nextSpaEvent, leadMinutes, override, maxOverrideLeadHours = 12 }) {

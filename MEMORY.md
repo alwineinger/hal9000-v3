@@ -72,6 +72,8 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 
 ## Home Automation Context (Hubitat)
 
+- Hubitat is the primary HA controller. Not all devices are exposed to HAL — Andy controls what gets exposed.
+- Hubitat has thermostat integration (Nester/Ecobee/Honeywell or native Hubitat device) — currently not wired up to HAL.
 - Hubitat integrated with **Hayward PL-PLUS** pool automation controller via RS485 (code in Andy's hubitat/aqualogic repos). PL-PLUS handles heater behavior autonomously once spa mode + heater relay + heater auto are all enabled — no ongoing openclaw control needed during preheat.
 - **Pool/Spa key behavior:** When `spaMode on` + `heaterPower on` + `heaterAuto on` → PL-PLUS manages heating to target temp on its own. No re-invocation needed during preheat. Spa automation's only end-of-event job: return to pool mode (`spaMode off`, `heaterAuto off`).
 - Spa preheat workflow: launchd polls khal every 5 min → detects upcoming "Spa" event → reads preheat override file if present → calculates lead time (null guard → 60 min default) → calls `spaHeatStart` macro at preheat window → PL-PLUS handles heating → launchd calls `spaHeatStop` macro at event end to return to pool mode.
