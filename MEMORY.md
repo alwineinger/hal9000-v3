@@ -101,6 +101,18 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 | 2141 | Lanai Spa Mode |
 | 226 | Office Light |
 
+## HVAC Device IDs (Hubitat)
+| ID | Label | Current Value |
+|---|---|---|
+| 1806 | Advanced Honeywell T6 Pro Thermostat | 74.5°F, cooling, setpoint 73°F |
+| 2189 | hvac_cool_away | 79°F |
+| 2190 | hvac_cool_day | 76°F |
+| 2191 | hvac_cool_night | 74°F |
+| 2192 | hvac_heat_away | 60°F |
+| 2193 | hvac_heat_day | 68°F |
+| 2194 | hvac_heat_night | 65°F |
+| 1992 | thermController-Advanced-Honeywell-T6-Pro (Thermostat Controller) | — |
+
 ## Operational Lessons
 
 - Weather fetch via `spa/weather-fetch.js` using OpenWeather `/data/2.5/forecast` for Tampa FL (lat 28.0375, lon -82.4246). API key in `~/.openclaw/secrets/openweather-api.txt`. Falls back to null on failure — scheduler never blocks on weather. isWeatherRisky() thresholds: rain ≥ 50% or thunder ≥ 35% in any hourly window within 4 hours. Desc keyword match also triggers risk.
