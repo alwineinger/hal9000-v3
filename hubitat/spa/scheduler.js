@@ -292,14 +292,16 @@ async function main() {
     // No weather risk (or approval already granted) — start heating
     runSpaMacro('spaHeatStart');
 
+    const activatedAt = checkedAt;
     // Wait 5 min for valve transit + water residence time before first valid temp reading
     delay(5 * 60 * 1000);
+    checkedAt = new Date(Date.now()).toISOString();
     const confirmedState = await readSnapshot();
     const valveOk = confirmedState?.valveState === 'spa';
 
     const activePreheat = buildPreheatSession({
       nextSpaEvent: prev.nextSpaEvent,
-      checkedAt,
+      activatedAt,
       weather,
       currentState: confirmedState,
       leadMinutes: prev.leadMinutes,
@@ -377,13 +379,14 @@ async function main() {
       runSpaMacro('spaHeatStart');
 
       // Wait 5 min for valve transit + water residence time before first valid temp reading
+      const activatedAt = checkedAt;
       delay(5 * 60 * 1000);
+      checkedAt = new Date(Date.now()).toISOString();
       const confirmedState = await readSnapshot();
-      // valve confirmed implicitly via continued operation
 
       const activePreheat = buildPreheatSession({
         nextSpaEvent: prev.nextSpaEvent,
-        checkedAt,
+        activatedAt,
         weather,
         currentState: confirmedState,
         leadMinutes: prev.leadMinutes,

@@ -11,10 +11,11 @@
 
 const { bucket, round } = require('./utils');
 
-function buildPreheatSession({ nextSpaEvent, checkedAt, weather, currentState, leadMinutes, config = {} }) {
+function buildPreheatSession({ nextSpaEvent, activatedAt, weather, currentState, leadMinutes, config = {} }) {
   if (!nextSpaEvent) return null;
 
   const target = config.targetTempF ?? 102;
+  const checkedAt = activatedAt; // first valid reading timestamp
   // Calendar events use `uid` not `id`
   const sessionId = `${nextSpaEvent.uid}:${checkedAt}`;
 
@@ -24,7 +25,8 @@ function buildPreheatSession({ nextSpaEvent, checkedAt, weather, currentState, l
     eventTitle: nextSpaEvent.title,
     eventStart: nextSpaEvent.start,
     eventEnd: nextSpaEvent.end,
-    startedAt: checkedAt,
+    activatedAt, // when spaHeatStart macro was called
+    startedAt: checkedAt, // first valid temp reading (after valve transit, = activatedAt + 5 min)
     initialSpaTempF: currentState?.spaTempF ?? null,
     ambientTempF: weather?.tempF ?? null,
     weatherDesc: weather?.desc ?? null,
@@ -69,7 +71,7 @@ function updateSessionObservation(session, { checkedAt, currentState }) {
   const rate = deltaMinutes > 0 ? round((deltaF / deltaMinutes) * 60, 2) : null;
 
   // Total elapsed since session start (non-accumulating — avoids the exponential feedback loop)
-  const sessionStartMs = Date.parse(session.startedAt);
+  const sessionStartMs = Date.parse(session.activatedAt);
   const totalElapsedMinutes = Number.isFinite(sessionStartMs)
     ? Math.max(0, Math.round((Date.parse(checkedAt) - sessionStartMs) / 60000))
     : 0;
