@@ -106,7 +106,7 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 |---|---|---|
 | 1806 | Advanced Honeywell T6 Pro Thermostat | cooling, setpoint 73°F |
 | 2189 | hvac_cool_away | 80°F |
-| 2190 | hvac_cool_day | 77°F |
+| 2190 | hvac_cool_day | 76°F |
 | 2191 | hvac_cool_night | 73°F |
 | 2192 | hvac_heat_away | 60°F |
 | 2193 | hvac_heat_day | 72°F |
