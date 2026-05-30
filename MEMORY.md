@@ -104,14 +104,24 @@ Once `spaHeatStart` is called and approved (if needed), PL-PLUS handles heating 
 ## HVAC Device IDs (Hubitat)
 | ID | Label | Current Value |
 |---|---|---|
-| 1806 | Advanced Honeywell T6 Pro Thermostat | 74.5°F, cooling, setpoint 73°F |
-| 2189 | hvac_cool_away | 79°F |
-| 2190 | hvac_cool_day | 76°F |
-| 2191 | hvac_cool_night | 74°F |
+| 1806 | Advanced Honeywell T6 Pro Thermostat | cooling, setpoint 73°F |
+| 2189 | hvac_cool_away | **80°F** |
+| 2190 | hvac_cool_day | **77°F** |
+| 2191 | hvac_cool_night | **73°F** |
 | 2192 | hvac_heat_away | 60°F |
-| 2193 | hvac_heat_day | 68°F |
+| 2193 | hvac_heat_day | **72°F** |
 | 2194 | hvac_heat_night | 65°F |
 | 1992 | thermController-Advanced-Honeywell-T6-Pro (Thermostat Controller) | — |
+
+## HVAC Schedule Variables
+| HAL name | Hubitat device | Description |
+|---|---|---|
+| thermawaycool | 2189 | Cooling setpoint when away |
+| thermawayheat | 2192 | Heating setpoint when away |
+| thermdaycool | 2190 | Cooling setpoint during day |
+| thermdayheat | 2193 | Day heating setpoint |
+| thermnightcool | 2191 | Night/bedroom cooling setpoint |
+| thermnightheat | 2194 | Night heating setpoint |
 
 ## Operational Lessons
 
