@@ -81,7 +81,7 @@ GET /room/delete/{roomId}?access_token={token}
 | Hub Variable | Device ID | Current Value |
 |---|---|---|
 | hvac_cool_away | 2189 | 80°F |
-| hvac_cool_day | 2190 | 76°F |
+| hvac_cool_day | 2190 | 75°F |
 | hvac_cool_night | 2191 | 73°F |
 | hvac_heat_away | 2192 | 60°F |
 | hvac_heat_day | 2193 | 72°F |
