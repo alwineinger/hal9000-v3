@@ -199,6 +199,12 @@ async function main() {
     const nextSpaStartMs = Date.parse(nextSpaEvent.start);
     const nextSpaEndMs   = Date.parse(nextSpaEvent.end);
 
+    // Skip events that have already ended — no point scheduling preheat for a past event
+    if (nextSpaEndMs && nowMs > nextSpaEndMs) {
+      saveState(buildState({ phase: 'idle', weather }));
+      return;
+    }
+
     const history = readHistory();
 
     const leadMinutes = calculateLeadMinutes({
@@ -239,6 +245,16 @@ async function main() {
     if (nowMs < prev.preheatStartMs) {
       // Too early — still waiting; just update checkedAt
       saveState({ ...prev, checkedAt });
+      return;
+    }
+
+    // If the preheat window opened more than one scheduler interval ago, the
+    // prior run missed it (likely because the event ended around midnight and
+    // Phase 1 re-computed a stale preheatStartMs). Don't try to backfill it —
+    // just go idle and let the next accurate cycle pick things up.
+    const STALE_PREHEAT_MS = 20 * 60 * 1000; // 20 min — one scheduler interval + buffer
+    if (nowMs - prev.preheatStartMs > STALE_PREHEAT_MS) {
+      saveState(buildState({ phase: 'idle', weather }));
       return;
     }
 

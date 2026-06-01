@@ -7,9 +7,9 @@
 const { bucket } = require('./utils');
 
 const TARGET_TEMP_F = 102; // default; callers should pass config value when available
-const BASE_HEAT_RATE_FPH = 4;
-const MIN_HEAT_RATE_FPH = 1.5;
-const PREHEAT_BUFFER_MIN = 15;
+const BASE_HEAT_RATE_FPH = 15; // 230k BTU heat pump, ~500 gal spa
+const MIN_HEAT_RATE_FPH = 10; // floor in case of unusual conditions
+const PREHEAT_BUFFER_MIN = 10;
 
 function sessionScore(session, current) {
   if (!session || !current) return 0;
@@ -31,7 +31,7 @@ function sessionScore(session, current) {
 function calculateHistoricalRate(history, current) {
   const sessions = Array.isArray(history?.sessions) ? history.sessions : [];
   const candidates = sessions
-    .filter((session) => Number.isFinite(session.observedRateFPerHour) && session.observedMinutes >= 15)
+    .filter((session) => Number.isFinite(session.observedRateFPerHour) && session.observedMinutes >= 30)
     .map((session) => ({
       session,
       score: sessionScore(session, current)
@@ -75,15 +75,13 @@ function calculateLeadMinutes({ spaTempF, ambientF, weatherDesc, history, config
   // Fallback: most recent session's observed rate (regardless of score).
   // Use when historical rate is null and we have a real observation to work from.
   const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
-  const lastObservedRate = (lastSession && Number.isFinite(lastSession.observedRateFPerHour) && lastSession.observedMinutes >= 15)
+  const lastObservedRate = (lastSession && Number.isFinite(lastSession.observedRateFPerHour) && lastSession.observedMinutes >= 30)
     ? lastSession.observedRateFPerHour
     : null;
 
   // Base rate (optimistic) is floored by minRate. Observed rates are never capped —
   // a measurement like 1.44°F/hr from a real session is more trustworthy than the floor.
-  const effectiveRate = (historicalRate != null)
-    ? historicalRate
-    : (lastObservedRate != null ? lastObservedRate : Math.max(minRate, baseRate));
+  const effectiveRate = Math.max(minRate, baseRate);
 
   const minutes = Math.max(0, Math.ceil((gap / Math.max(minRate, effectiveRate)) * 60)) + buffer;
   return minutes;
