@@ -80,12 +80,21 @@ function calculateLeadMinutes({ spaTempF, ambientF, weatherDesc, history, config
     ? lastSession.observedRateFPerHour
     : null;
 
-  // Base rate (optimistic) is floored by minRate. Observed rates are never capped —
-  // a measurement like 1.44°F/hr from a real session is more trustworthy than the floor.
-  const penalty = weather ? weatherPenalty(weather) : 1;
-  const effectiveRate = Math.max(minRate, baseRate) / penalty;
+  // Use the best available rate: weighted historical blend > last session's observed rate > base rate
+  let effectiveRate = baseRate; // default to base (pessimistic/conservative)
 
-  const minutes = Math.max(0, Math.ceil((gap / Math.max(minRate, effectiveRate)) * 60)) + buffer;
+  if (Number.isFinite(historicalRate) && historicalRate > 0) {
+    effectiveRate = historicalRate;
+  } else if (Number.isFinite(lastObservedRate) && lastObservedRate > 0) {
+    effectiveRate = lastObservedRate;
+  } else {
+    effectiveRate = baseRate; // conservative fallback
+  }
+
+  const penalty = weather ? weatherPenalty(weather) : 1;
+  const rate = Math.max(minRate, effectiveRate) / penalty;
+
+  const minutes = Math.max(0, Math.ceil((gap / rate) * 60)) + buffer;
   return minutes;
 }
 
