@@ -41,6 +41,10 @@ const APPROVAL_POLL_SCRIPT = path.join(__dirname, 'approval-poll.js');
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -117,11 +121,6 @@ function runSpaMacro(macro) {
   return run('node', [CONTROL_SCRIPT, 'macro', macro, '--confirm']);
 }
 
-function delay(ms) {
-  const start = Date.now();
-  while (Date.now() - start < ms) { /* spin */ }
-}
-
 // ── calendar fetch ───────────────────────────────────────────────────────────
 
 async function fetchCalendarEvents(days = 7) {
@@ -166,6 +165,26 @@ function pushSession(history, session) {
   else sessions.push(session);
   history.sessions = sessions.slice(-40);
   return history;
+}
+
+/**
+ * Wait for valve to reach 'spa' state, with one automatic retry.
+ * Returns { valveOk, attempts } where attempts is 1 or 2.
+ */
+async function waitForValveReady(retries = 1) {
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    await sleep(5 * 60 * 1000);
+    const state = await readSnapshot();
+    if (state?.valveState === 'spa') {
+      return { valveOk: true, attempts: attempt, confirmedState: state };
+    }
+    if (attempt <= retries) {
+      // Retry once: re-invoke spaHeatStart to nudge the valve
+      try { runSpaMacro('spaHeatStart'); } catch { /* best effort */ }
+    }
+  }
+  // Valve never reached 'spa' after all attempts
+  return { valveOk: false, attempts: retries + 1, confirmedState: null };
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -248,16 +267,6 @@ async function main() {
       return;
     }
 
-    // If the preheat window opened more than one scheduler interval ago, the
-    // prior run missed it (likely because the event ended around midnight and
-    // Phase 1 re-computed a stale preheatStartMs). Don't try to backfill it —
-    // just go idle and let the next accurate cycle pick things up.
-    const STALE_PREHEAT_MS = 20 * 60 * 1000; // 20 min — one scheduler interval + buffer
-    if (nowMs - prev.preheatStartMs > STALE_PREHEAT_MS) {
-      saveState(buildState({ phase: 'idle', weather }));
-      return;
-    }
-
     // Time to start preheat — check weather risk
     const weatherRisk = isWeatherRisky(weather);
 
@@ -308,12 +317,20 @@ async function main() {
     // No weather risk (or approval already granted) — start heating
     runSpaMacro('spaHeatStart');
 
-    const activatedAt = checkedAt;
-    // Wait 5 min for valve transit + water residence time before first valid temp reading
-    delay(5 * 60 * 1000);
-    checkedAt = new Date(Date.now()).toISOString();
-    const confirmedState = await readSnapshot();
-    const valveOk = confirmedState?.valveState === 'spa';
+    const activatedAt = new Date(Date.now()).toISOString();
+
+    // Wait for valve to reach 'spa' state (retry once if needed)
+    const valveResult = await waitForValveReady(1);
+
+    if (!valveResult.valveOk) {
+      // Valve failed to reach 'spa' mode after retry — abort session gracefully
+      console.error(`[spa-check] Valve failed to reach 'spa' mode after ${valveResult.attempts} attempt(s). Aborting session.`);
+      saveState(buildState({ phase: 'idle', weather }));
+      return;
+    }
+
+    const confirmedState = valveResult.confirmedState;
+    const currentCheckedAt = new Date(Date.now()).toISOString();
 
     const activePreheat = buildPreheatSession({
       nextSpaEvent: prev.nextSpaEvent,
@@ -330,7 +347,7 @@ async function main() {
 
     saveState({
       ...prev,
-      checkedAt,
+      checkedAt: currentCheckedAt,
       phase: 'heating',
       activePreheat,
       weatherApproval: readWeatherApproval()
@@ -351,13 +368,14 @@ async function main() {
 
     if (!eventEnded && !exceededMax) {
       // Still within event window and max-duration bound — update observation, stay heating
-      const updated = updateSessionObservation(prev.activePreheat, { checkedAt, currentState });
+      const currentCheckedAt = new Date(nowMs).toISOString();
+      const updated = updateSessionObservation(prev.activePreheat, { checkedAt: currentCheckedAt, currentState });
 
       const history = readHistory();
       pushSession(history, updated);
       writeHistory(history);
 
-      saveState({ ...prev, checkedAt, activePreheat: updated });
+      saveState({ ...prev, checkedAt: currentCheckedAt, activePreheat: updated });
       return;
     }
 
@@ -368,8 +386,7 @@ async function main() {
       runSpaMacro('spaHeatStop');
     } catch (err) {
       // spaHeatStop failure should not block finalization; log and continue
-      console.error(`
-[spa-check] WARNING: spaHeatStop failed: ${err.message}`);
+      console.error(`[spa-check] WARNING: spaHeatStop failed: ${err.message}`);
     }
 
     const finalized = finalizeSession(prev.activePreheat, completionReason, { checkedAt });
@@ -394,11 +411,20 @@ async function main() {
       // Start heating
       runSpaMacro('spaHeatStart');
 
-      // Wait 5 min for valve transit + water residence time before first valid temp reading
-      const activatedAt = checkedAt;
-      delay(5 * 60 * 1000);
-      checkedAt = new Date(Date.now()).toISOString();
-      const confirmedState = await readSnapshot();
+      const activatedAt = new Date(Date.now()).toISOString();
+
+      // Wait for valve to reach 'spa' state (retry once if needed)
+      const valveResult = await waitForValveReady(1);
+
+      if (!valveResult.valveOk) {
+        // Valve failed to reach 'spa' mode after retry — abort session gracefully
+        console.error(`[spa-check] Valve failed to reach 'spa' mode after ${valveResult.attempts} attempt(s). Aborting session.`);
+        saveState(buildState({ phase: 'idle', weather }));
+        return;
+      }
+
+      const confirmedState = valveResult.confirmedState;
+      const currentCheckedAt = new Date(Date.now()).toISOString();
 
       const activePreheat = buildPreheatSession({
         nextSpaEvent: prev.nextSpaEvent,
@@ -415,7 +441,7 @@ async function main() {
 
       saveState({
         ...prev,
-        checkedAt,
+        checkedAt: currentCheckedAt,
         phase: 'heating',
         activePreheat,
         weatherApproval: updatedApproval

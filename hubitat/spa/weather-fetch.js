@@ -16,8 +16,10 @@
  */
 
 const { spawnSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
-const API_KEY = require('fs').readFileSync(require('path').join(process.env.HOME, '.openclaw', 'secrets', 'openweather-api.txt'), 'utf8').trim() || 'DEMO_KEY';
+const API_KEY = fs.readFileSync(path.join(process.env.HOME, '.openclaw', 'secrets', 'openweather-api.txt'), 'utf8').trim() || 'DEMO_KEY';
 const LAT = '28.0375';
 const LON = '-82.4246';
 const ONE_CALL_URL = `https://api.openweathermap.org/data/3.0/onecall?lat=${LAT}&lon=${LON}&exclude=minutely,alerts&units=imperial&appid=${API_KEY}`;
