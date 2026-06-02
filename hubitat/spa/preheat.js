@@ -5,6 +5,7 @@
  */
 
 const { bucket } = require('./utils');
+const { weatherPenalty } = require('./weather');
 
 const TARGET_TEMP_F = 102; // default; callers should pass config value when available
 const BASE_HEAT_RATE_FPH = 15; // 230k BTU heat pump, ~500 gal spa
@@ -81,7 +82,8 @@ function calculateLeadMinutes({ spaTempF, ambientF, weatherDesc, history, config
 
   // Base rate (optimistic) is floored by minRate. Observed rates are never capped —
   // a measurement like 1.44°F/hr from a real session is more trustworthy than the floor.
-  const effectiveRate = Math.max(minRate, baseRate);
+  const penalty = weather ? weatherPenalty(weather) : 1;
+  const effectiveRate = Math.max(minRate, baseRate) / penalty;
 
   const minutes = Math.max(0, Math.ceil((gap / Math.max(minRate, effectiveRate)) * 60)) + buffer;
   return minutes;
@@ -110,7 +112,7 @@ function resolvePreheatWindow({ nextSpaEvent, leadMinutes, override, maxOverride
       };
     }
     return {
-      preheatStartMs: eventStartMs - (leadMinutes * 60 * 1000),
+      preheatStartMs: eventStartMs - ((leadMinutes ?? 60) * 60 * 1000),
       overrideApplied: false,
       overrideIgnored: true
     };

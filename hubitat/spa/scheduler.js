@@ -14,12 +14,11 @@ const { readSnapshot } = require(path.join(__dirname, '..', 'monitor'));
 const { loadConfig } = require('./config');
 const { fetchWeather } = require('./weather-fetch');
 const { isWeatherRisky } = require('./weather');
-const { calculateLeadMinutes } = require('./preheat');
+const { calculateLeadMinutes, resolvePreheatWindow } = require('./preheat');
 const { buildPreheatSession, updateSessionObservation, finalizeSession } = require('./session');
 const {
   approvalMatchesContext,
   approvalExpiresMs,
-  approvalPromptSent,
   createPendingApproval,
   stampApprovalPrompt,
   decideFromPollResult
@@ -34,10 +33,38 @@ const EVENTS_FILE         = process.env.SPA_EVENTS_FILE         || path.join(DAT
 const HISTORY_FILE        = process.env.SPA_HISTORY_FILE        || path.join(DATA_DIR, 'spa-preheat-history.json');
 const OVERRIDE_FILE       = process.env.SPA_PREHEAT_OVERRIDE_FILE || path.join(DATA_DIR, 'spa-preheat-override.json');
 const WEATHER_APPROVAL_FILE = process.env.SPA_WEATHER_APPROVAL_FILE || path.join(DATA_DIR, 'spa-weather-approval.json');
+const RUN_LOG_FILE = process.env.SPA_RUN_LOG_FILE || path.join(DATA_DIR, 'spa-scheduler.log');
 
 const CALENDAR_SCRIPT     = path.join(__dirname, 'calendar-fetch.js');
 const CONTROL_SCRIPT      = path.join(ROOT, 'hubitat', 'control.js');
 const APPROVAL_POLL_SCRIPT = path.join(__dirname, 'approval-poll.js');
+
+// ── run log helpers ───────────────────────────────────────────────────────────
+
+function runLog(level, message) {
+  const entry = `[${new Date().toISOString()}] [${level}] ${message}\n`;
+  fs.appendFileSync(RUN_LOG_FILE, entry);
+}
+
+function rotateRunLog(retentionDays = 7) {
+  try {
+    const content = fs.readFileSync(RUN_LOG_FILE, 'utf8');
+    const cutoffMs = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+    const lines = content.split('\n').filter(line => {
+      if (!line.includes('[')) return true; // keep non-log lines
+      const match = line.match(/\[([^\]]+)\]/);
+      if (!match) return true;
+      const ts = Date.parse(match[1]);
+      return Number.isFinite(ts) && ts > cutoffMs;
+    });
+    fs.writeFileSync(RUN_LOG_FILE, lines.join('\n') + '\n');
+  } catch (err) {
+    // If rotation itself fails (disk full, corrupt file), let the scheduler keep running
+    // but emit to stderr so there's at least some record of the failure.
+    // Avoids silent failure when rotateRunLog is the thing that's broken.
+    process.stderr.write(`[spa-check] rotateRunLog failed: ${err.message}\n`);
+  }
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -191,6 +218,9 @@ async function waitForValveReady(retries = 1) {
 
 async function main() {
   const cfg      = loadConfig();
+
+  // Rotate run log on every entry — keeps file bounded to retention window
+  rotateRunLog(cfg.spaRunLogRetentionDays ?? 7);
   const nowMs    = Date.now();
   const checkedAt = new Date(nowMs).toISOString();
 
@@ -236,8 +266,13 @@ async function main() {
 
     const leadMinutesSafe = leadMinutes ?? 60;
     const override = readOverride();
-    const overrideStartAtMs = override?.startAt ? Date.parse(override.startAt) : null;
-    const preheatStartMs = overrideStartAtMs ?? (nextSpaStartMs - (leadMinutesSafe * 60 * 1000));
+    const window = resolvePreheatWindow({
+      nextSpaEvent,
+      leadMinutes: leadMinutesSafe,
+      override,
+      maxOverrideLeadHours: cfg.maxOverrideLeadHours ?? 12
+    });
+    const preheatStartMs = window.preheatStartMs;
 
     prev = saveState(buildState({
       phase: 'idle',
@@ -245,7 +280,9 @@ async function main() {
       preheatStartMs,
       leadMinutes: leadMinutesSafe,
       weather,
-      overrideStartAt: override?.startAt ?? null
+      overrideStartAt: override?.startAt ?? null,
+      overrideApplied: window.overrideApplied,
+      overrideIgnored: window.overrideIgnored
     }));
 
     // Phase 1 done — state saved, preheat window set.
@@ -324,7 +361,7 @@ async function main() {
 
     if (!valveResult.valveOk) {
       // Valve failed to reach 'spa' mode after retry — abort session gracefully
-      console.error(`[spa-check] Valve failed to reach 'spa' mode after ${valveResult.attempts} attempt(s). Aborting session.`);
+      runLog('ERROR', `Valve failed to reach 'spa' mode after ${valveResult.attempts} attempt(s). Aborting session.`);
       saveState(buildState({ phase: 'idle', weather }));
       return;
     }
@@ -386,7 +423,7 @@ async function main() {
       runSpaMacro('spaHeatStop');
     } catch (err) {
       // spaHeatStop failure should not block finalization; log and continue
-      console.error(`[spa-check] WARNING: spaHeatStop failed: ${err.message}`);
+      runLog('ERROR', `WARNING: spaHeatStop failed: ${err.message}`);
     }
 
     const finalized = finalizeSession(prev.activePreheat, completionReason, { checkedAt });
@@ -418,7 +455,7 @@ async function main() {
 
       if (!valveResult.valveOk) {
         // Valve failed to reach 'spa' mode after retry — abort session gracefully
-        console.error(`[spa-check] Valve failed to reach 'spa' mode after ${valveResult.attempts} attempt(s). Aborting session.`);
+        runLog('ERROR', `Valve failed to reach 'spa' mode after ${valveResult.attempts} attempt(s). Aborting session.`);
         saveState(buildState({ phase: 'idle', weather }));
         return;
       }
@@ -474,7 +511,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch(err => {
-    console.error(err.message);
+    runLog('ERROR', err.message);
     process.exit(1);
   });
 }

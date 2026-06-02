@@ -47,8 +47,7 @@ function buildPreheatSession({ nextSpaEvent, activatedAt, weather, currentState,
     observedRateFPerHour: null,
     startSpaBucket: bucket(currentState?.spaTempF, 2),
     ambientBucket: bucket(weather?.tempF, 5),
-    lastObservedAt: checkedAt,
-    lastObservedSpaTempF: currentState?.spaTempF ?? null
+    lastObservedAt: checkedAt
   };
 }
 
@@ -87,7 +86,6 @@ function updateSessionObservation(session, { checkedAt, currentState }) {
     ...session,
     observations: [...(session.observations || []), newObs],
     lastObservedAt: checkedAt,
-    lastObservedSpaTempF: currentState?.spaTempF ?? null,
     observedMinutes: totalElapsedMinutes
   };
 

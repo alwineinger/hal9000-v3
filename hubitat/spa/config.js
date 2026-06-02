@@ -12,6 +12,7 @@ const DEFAULTS = {
   WEATHER_APPROVAL_TIMEOUT_MIN: 5,
   MAX_OVERRIDE_LEAD_HOURS: 12,
   WEATHER_LOCATION: 'Tampa, FL',
+  SPA_RUN_LOG_RETENTION_DAYS: 7,
 };
 
 function loadConfig(env = process.env) {
@@ -28,6 +29,7 @@ function loadConfig(env = process.env) {
     weatherApprovalChannel: env.SPA_WEATHER_APPROVAL_CHANNEL || 'telegram',
     weatherApprovalTarget: env.SPA_WEATHER_APPROVAL_TARGET || '',
     openclawBin: env.OPENCLAW_BIN || 'openclaw',
+    spaRunLogRetentionDays: Number(env.SPA_RUN_LOG_RETENTION_DAYS || DEFAULTS.SPA_RUN_LOG_RETENTION_DAYS),
   };
 }
 
