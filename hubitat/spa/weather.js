@@ -22,8 +22,11 @@ function weatherPenalty(weather) {
 function isWeatherRisky(weather) {
   if (!weather) return false;
   const desc = String(weather.desc || '').toLowerCase();
-  if (/rain|storm|thunder|squall|shower/.test(desc)) return true;
-  if (Number.isFinite(weather.precipMm) && weather.precipMm > 0) return true;
+  if (/rain|storm|thunder|squall|shower/.test(desc)) {
+    if (Number.isFinite(weather.precipMm) && weather.precipMm >= 2.54) return true;
+    return false; // keyword match but insufficient precip — not risky
+  }
+  if (Number.isFinite(weather.precipMm) && weather.precipMm >= 2.54) return true;
 
   const forecasts = Array.isArray(weather.forecast) ? weather.forecast : [];
   const nowMs = Date.now();
