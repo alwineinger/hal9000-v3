@@ -104,8 +104,7 @@ function isValidReply(message, target, promptSentAt) {
   const sender = String(message.senderId || message.from?.id || message.chat?.id || '').replace(/^-?100/, '');
   const targetNorm = String(target || '').replace(/^-?100/, '');
   if (targetNorm && sender && sender !== targetNorm && sender !== `-${targetNorm}`) {
-    // Allow if no sender info — telegram can be ambiguous
-    // Only reject if we canConfirm a mismatch
+    return false;
   }
 
   const msgTime = Date.parse(message.timestamp || message.date || message.createdAt || '');
@@ -115,6 +114,15 @@ function isValidReply(message, target, promptSentAt) {
   }
 
   return true;
+}
+
+function expireApprovalDefaultYes(approval, nowMs) {
+  return {
+    ...approval,
+    status: 'approved',
+    decisionAt: new Date(nowMs).toISOString(),
+    decisionSource: 'expired-default-yes'
+  };
 }
 
 /**
@@ -142,24 +150,42 @@ function doCheck() {
 
   // Check expiration first
   if (Number.isFinite(expiresAt) && nowMs > expiresAt) {
-    const updated = {
-      ...approval,
-      status: 'denied',
-      decisionAt: new Date(nowMs).toISOString(),
-      decisionSource: 'expired'
-    };
+    const updated = expireApprovalDefaultYes(approval, nowMs);
     writeJson(WEATHER_APPROVAL_FILE, updated);
-    console.log(JSON.stringify({ status: 'expired', reason: 'approval-timed-out' }));
+    console.log(JSON.stringify({ status: 'approved', reason: 'approval-timed-out-default-yes' }));
     process.exit(0);
   }
 
   // Fetch recent Telegram messages and look for a reply
   if (target) {
+    // Extract valid messageIds from the approval's prompt delivery payload
+    const validReplyMessageIds = [];
+    try {
+      const payloadMsgId = approval.promptDelivery?.result?.payload?.messageId;
+      if (payloadMsgId) {
+        validReplyMessageIds.push(String(payloadMsgId));
+      }
+      // Also accept nested paths that some providers use
+      const altMsgId = approval.promptDelivery?.result?.messageId
+        || approval.promptDelivery?.result?.message_id;
+      if (altMsgId && !validReplyMessageIds.includes(String(altMsgId))) {
+        validReplyMessageIds.push(String(altMsgId));
+      }
+    } catch { /* ignore extraction errors */ }
+
     const messages = fetchRecentMessages(target, 20);
     let foundReply = null;
 
     for (const msg of messages) {
       if (!isValidReply(msg, target, promptSentAt)) continue;
+
+      // Validate that this message is a reply to our prompt (when we have a known messageId)
+      const replyToId = msg.reply_to_message?.message_id ?? msg.inReplyTo ?? null;
+      if (replyToId && validReplyMessageIds.length > 0 && !validReplyMessageIds.includes(String(replyToId))) {
+        // Not a reply to our prompt — skip silently
+        continue;
+      }
+
       const vote = parseApprovalReply(msg.text || msg.message?.text || '');
       if (vote) {
         foundReply = vote;
@@ -211,19 +237,25 @@ function doRespond(decision) {
   process.exit(0);
 }
 
-// CLI entrypoint
-const args = process.argv.slice(2);
-if (args.includes('--check')) {
-  doCheck();
-} else if (args.includes('--respond')) {
-  const idx = args.indexOf('--respond');
-  const decision = args[idx + 1];
-  if (!decision) {
-    console.error('--respond requires <yes|no>');
+module.exports = {
+  expireApprovalDefaultYes
+};
+
+if (require.main === module) {
+  // CLI entrypoint
+  const args = process.argv.slice(2);
+  if (args.includes('--check')) {
+    doCheck();
+  } else if (args.includes('--respond')) {
+    const idx = args.indexOf('--respond');
+    const decision = args[idx + 1];
+    if (!decision) {
+      console.error('--respond requires <yes|no>');
+      process.exit(1);
+    }
+    doRespond(decision);
+  } else {
+    console.error('Usage: node approval-poll.js --check\n       node approval-poll.js --respond <yes|no>');
     process.exit(1);
   }
-  doRespond(decision);
-} else {
-  console.error('Usage: node approval-poll.js --check\n       node approval-poll.js --respond <yes|no>');
-  process.exit(1);
 }
