@@ -23,7 +23,8 @@
       "subagents": {
         "allowAgents": [
           "main",
-          "coding_specialist"
+          "coding_specialist",
+          "grok"
         ]
       }
     },
@@ -50,6 +51,25 @@
         },
         "models": {
           "openrouter/deepseek/deepseek-v4-pro": {},
+          "openrouter/x-ai/grok-build-0.1": {}
+        }
+      },
+      {
+        "id": "grok",
+        "name": "grok",
+        "workspace": "/Users/oc_user/.openclaw/workspace-grok",
+        "agentDir": "/Users/oc_user/.openclaw/agents/grok/agent",
+        "model": {
+          "primary": "openrouter/x-ai/grok-4.3",
+          "fallbacks": [
+            "openrouter/x-ai/grok-build-0.1"
+          ]
+        },
+        "tools": {
+          "profile": "full"
+        },
+        "models": {
+          "openrouter/x-ai/grok-4.3": {},
           "openrouter/x-ai/grok-build-0.1": {}
         }
       }
