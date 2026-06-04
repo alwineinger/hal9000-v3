@@ -550,7 +550,7 @@ async function main() {
       if (nowMs >= nextSpaEndMs) {
         runLog('INFO', `[HEATING→IDLE] Preheat failed earlier; stopping at event end.`);
         const state = await readSnapshot();
-        if (state?.valveState === 'pool') {
+        if (state?.valveState === 'pool' || state?.valveState === 'off') {
           runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
         } else {
           try { runSpaMacro('spaHeatStop'); } catch (err) {
@@ -574,7 +574,7 @@ async function main() {
       // Event was removed — stop heating and notify
       runLog('INFO', `[HEATING] Event uid=${prev.nextSpaEvent?.uid} no longer on calendar — stopping spa.`);
       const state = await readSnapshot();
-      if (state?.valveState === 'pool') {
+      if (state?.valveState === 'pool' || state?.valveState === 'off') {
         runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
       } else {
         runLog('INFO', `[HEATING→IDLE] Spa not in pool mode — calling spaHeatStop.`);
@@ -628,7 +628,7 @@ async function main() {
 
     runLog('INFO', `[HEATING→IDLE] Event ended (uid=${prev.nextSpaEvent?.uid}). Calling spaHeatStop.`);
     const state = await readSnapshot();
-    if (state?.valveState === 'pool') {
+    if (state?.valveState === 'pool' || state?.valveState === 'off') {
       runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
     } else {
       try {
