@@ -131,6 +131,13 @@ function expireApprovalDefaultYes(approval, nowMs) {
  * updates file status, and prints result JSON.
  */
 function doCheck() {
+  const existing = readJson(WEATHER_APPROVAL_FILE);
+  if (existing?.status === 'approved' || existing?.status === 'denied') {
+    console.error(`[approval-poll] Approval already ${existing.status} — skipping poll.`);
+    process.stdout.write(JSON.stringify({ status: existing.status, reason: `already-${existing.status}` }));
+    process.exit(0);
+  }
+
   const approval = readJson(WEATHER_APPROVAL_FILE);
   if (!approval) {
     console.log(JSON.stringify({ status: 'pending', reason: 'no-approval-file' }));

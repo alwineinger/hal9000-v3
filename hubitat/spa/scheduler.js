@@ -34,6 +34,7 @@ const HISTORY_FILE        = process.env.SPA_HISTORY_FILE        || path.join(DAT
 const OVERRIDE_FILE       = process.env.SPA_PREHEAT_OVERRIDE_FILE || path.join(DATA_DIR, 'spa-preheat-override.json');
 const WEATHER_APPROVAL_FILE = process.env.SPA_WEATHER_APPROVAL_FILE || path.join(DATA_DIR, 'spa-weather-approval.json');
 const RUN_LOG_FILE = process.env.SPA_RUN_LOG_FILE || path.join(DATA_DIR, 'spa-scheduler.log');
+const LOCK_FILE = path.join(DATA_DIR, 'spa-scheduler.lock');
 
 const CALENDAR_SCRIPT     = path.join(__dirname, 'calendar-fetch.js');
 const CONTROL_SCRIPT      = path.join(ROOT, 'hubitat', 'control.js');
@@ -67,6 +68,36 @@ function rotateRunLog(retentionDays = 7) {
     // Avoids silent failure when rotateRunLog is the thing that's broken.
     process.stderr.write(`[spa-check] rotateRunLog failed: ${err.message}\n`);
   }
+}
+
+// ── lock file helpers ──────────────────────────────────────────────────────────
+
+function acquireLock() {
+  const pid = process.pid;
+  const tmp = LOCK_FILE + '.tmp';
+  try {
+    fs.writeFileSync(tmp, String(pid));
+    fs.renameSync(tmp, LOCK_FILE); // atomic on macOS
+    return true;
+  } catch (err) {
+    if (err.code !== 'EEXIST') return false;
+    try {
+      const oldPid = Number(fs.readFileSync(LOCK_FILE, 'utf8').trim());
+      // Check if old process is still alive
+      try { process.kill(oldPid, 0); return false; } catch { /* died, stale lock */ }
+      // Stale lock — remove and retry
+      try { fs.unlinkSync(LOCK_FILE); } catch { /* best effort */ }
+      try {
+        fs.writeFileSync(tmp, String(pid));
+        fs.renameSync(tmp, LOCK_FILE);
+        return true;
+      } catch { return false; }
+    } catch { return false; }
+  }
+}
+
+function releaseLock() {
+  try { fs.unlinkSync(LOCK_FILE); } catch { /* best effort */ }
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -253,7 +284,14 @@ async function waitForValveReady(retries = 1) {
 async function main() {
   const cfg      = loadConfig();
 
-  // Rotate run log on every entry — keeps file bounded to retention window
+  // Acquire lock to prevent concurrent runs (e.g. launchd fires while previous run is still executing)
+  if (!acquireLock()) {
+    runLog('WARNING', '[scheduler] Lock file held by another process — skipping this run.');
+    return;
+  }
+
+  try {
+    // Rotate run log on every entry — keeps file bounded to retention window
   rotateRunLog(cfg.spaRunLogRetentionDays ?? 7);
   const nowMs    = Date.now();
   const checkedAt = new Date(nowMs).toISOString();
@@ -464,6 +502,7 @@ async function main() {
       checkedAt: currentCheckedAt,
       phase: 'heating',
       activePreheat,
+      nextSpaEventEndMs: prev.nextSpaEventEndMs,
       weatherApproval: readWeatherApproval()
     });
     return;
@@ -633,6 +672,9 @@ async function main() {
 
   // Unknown / stale phase — reset gracefully
   saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+  } finally {
+    releaseLock();
+  }
 }
 
 if (require.main === module) {
