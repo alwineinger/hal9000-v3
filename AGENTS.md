@@ -56,6 +56,29 @@ Check emails, calendar, mentions, weather. Reach out on urgent emails, events <2
 
 This applies whether the task is calendar sync, device control, messaging, weather, or anything else. If the skill exists, assess whether it works with the user's actual setup (OS, provider, existing tools). If it does, prefer it. If it doesn't work, note why and then build from scratch as a follow-up.
 
+## Subagent Spawning — Correct Syntax
+
+**Always pass `agentId` when specific agents are required.** Without it, `runtime: "subagent"` defaults to the main agent model regardless of task name or intent.
+
+```javascript
+sessions_spawn({
+  agentId: "coding_specialist",   // required for DeepSeek-V4-Pro (implementation)
+  agentId: "grok",                // required for Grok-4.3 (deep reasoning)
+  runtime: "subagent",
+  task: "...",
+  taskName: "..."                // label only — no routing effect
+})
+```
+
+**Available agents:**
+| agentId | Model | Use when |
+|---|---|---|
+| `main` | MiniMax-M2.7 | Default subagent (falls through without `agentId`) |
+| `coding_specialist` | DeepSeek-V4-Pro | Code implementation, refactors, multi-file patches, reviews |
+| `grok` | Grok-4.3 | Deep reasoning, scenario traces, architectural analysis |
+
+**Rule: always verify `agents_list` before first spawn in a session.** Agent IDs and availability can change. Do not assume without checking.
+
 ## Delegation Policy
 
 **If you're doing work that isn't just talking — spawn a subagent.** Read a file twice, run exec twice, edit something, fix something, investigate something: delegate it. Announce in chat first, then delegate.
@@ -72,13 +95,20 @@ This applies whether the task is calendar sync, device control, messaging, weath
 
 In practice: if you've called a tool twice in a row on the same task without a user response, stop and spawn a subagent. Keep `main` available.
 
-## Main subagents vs coding_specialist
+## Main subagents vs coding_specialist vs grok
 
-**Main subagent sessions:** best for findings — tool execution, log analysis, file inspection, web research, multi-source synthesis, cross-file investigation, test execution, and reporting results. Main agent frames the task and synthesizes the answer.
+**coding_specialist sessions (DeepSeek-V4-Pro):** best for implementation — writing or editing code, refactors, multi-file patches, algorithmic changes, test generation, build/lint validation, code review, and architecture-sensitive implementation planning. coding_specialist should not be asked to diagnose symptoms across unrelated systems.
 
-**coding_specialist sessions:** best for implementation — writing or editing code, refactors, multi-file patches, algorithmic changes, test generation, build/lint validation, code review, and architecture-sensitive implementation planning. coding_specialist should not be asked to diagnose symptoms across unrelated systems.
+**grok sessions (Grok-4.3):** best for deep reasoning — scenario traces, architectural analysis, root-cause diagnosis of complex failures, multi-system correlation.
 
-**Routing:** if the task is "find out what's broken" → main subagent. If the task is "fix the broken thing" → coding_specialist. If uncertain, ask main first.
+**Main subagent sessions (MiniMax-M2.7):** best for findings — tool execution, log analysis, file inspection, web research, multi-source synthesis, cross-file investigation, test execution, and reporting results. Main agent frames the task and synthesizes the answer.
+
+**Routing:**
+- "Find out what's broken" → main subagent or grok
+- "Fix the broken thing" → coding_specialist
+- "Trace a complex scenario end-to-end" → grok
+- "Review code for bugs across many files" → coding_specialist
+- "Coordinate multiple specialist agents" → main
 
 ## Delegation routing rule
 
