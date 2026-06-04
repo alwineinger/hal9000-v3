@@ -23,7 +23,7 @@ const {
   stampApprovalPrompt,
   decideFromPollResult
 } = require('./approval');
-const { sendWeatherApprovalPrompt, sendValveFailureAlert } = require('./telegram');
+const { sendWeatherApprovalPrompt, sendValveFailureAlert, sendHeatingStartedLateAlert } = require('./telegram');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const DATA_DIR = path.join(ROOT, 'data');
@@ -470,6 +470,20 @@ async function main() {
     }
 
     // No weather risk (or approval already granted) — start heating
+
+    // Detect and notify on late start (T1 decision)
+    if (nowMs > prev.preheatStartMs) {
+      const lateByMin = Math.round((nowMs - prev.preheatStartMs) / 60_000);
+      const estimatedReadyMs = currentState?.spaTempF
+        ? nowMs + Math.max(0, (102 - currentState.spaTempF) * 2 * 60_000)
+        : (prev.nextSpaEventEndMs ?? nowMs + 60 * 60_000);
+      try {
+        sendHeatingStartedLateAlert(lateByMin, estimatedReadyMs);
+      } catch (err) {
+        runLog('WARNING', `[HEATING] sendHeatingStartedLateAlert failed: ${err.message}`);
+      }
+    }
+
     runLog('INFO', `[IDLE→HEATING] Calling spaHeatStart for event uid=${prev.nextSpaEvent?.uid}.`);
     runSpaMacro('spaHeatStart');
     runLog('INFO', `[HEATING] spaHeatStart succeeded; waiting for valve confirmation.`);
