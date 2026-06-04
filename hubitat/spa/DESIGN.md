@@ -55,6 +55,7 @@ The scheduler has 4 explicit phases:
 - One-shot gate — once approved, no re-approval needed during preheat
 - Approval sent via Telegram, reply polled on next launchd cycle
 - Timeout: 5 min, then preheat defaults to YES and proceeds
+- Weather check window is configurable via `WEATHER_CHECK_LEAD_MIN` in config.js (default: 30 minutes before preheatStartMs)
 
 ### Calendar Integration
 

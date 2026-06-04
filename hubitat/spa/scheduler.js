@@ -219,9 +219,9 @@ function buildState(overrides = {}) {
   };
 }
 
-function resolveWeatherCheckMs({ preheatStartMs }) {
+function resolveWeatherCheckMs({ preheatStartMs, weatherCheckLeadMin = 30 }) {
   if (!Number.isFinite(preheatStartMs)) return null;
-  return preheatStartMs - 600_000;
+  return preheatStartMs - (weatherCheckLeadMin * 60 * 1000);
 }
 
 // ── session helpers ──────────────────────────────────────────────────────────
@@ -251,7 +251,13 @@ async function waitForValveReady(retries = 1) {
   const startMs = Date.now();
 
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
-    const state = await readSnapshot();
+    let state;
+    try {
+      state = await readSnapshot();
+    } catch (err) {
+      runLog('WARNING', `[waitForValveReady] readSnapshot failed: ${err.message}. Retrying...`);
+      state = null;
+    }
     if (state?.valveState === 'spa') {
       return { valveOk: true, attempts: attempt, confirmedState: state };
     }
@@ -319,6 +325,14 @@ async function main() {
 
     const nextSpaEvent = events[0]; // already sorted by start
     runLog('INFO', `[IDLE] Event detected: Spa uid=${nextSpaEvent.uid} starting ${nextSpaEvent.start} (ends ${nextSpaEvent.end}).`);
+
+    // Clear any stale approval that doesn't match the new event's uid
+    const existingApproval = readWeatherApproval();
+    if (existingApproval?.status === 'pending' && existingApproval?.eventId !== nextSpaEvent.uid) {
+      runLog('INFO', `[IDLE] Clearing stale pending approval from uid=${existingApproval?.eventId} — new event uid=${nextSpaEvent.uid}.`);
+      writeWeatherApproval(null);
+    }
+
     const nextSpaStartMs = Date.parse(nextSpaEvent.start);
     const nextSpaEndMs   = Date.parse(nextSpaEvent.end);
 
@@ -521,8 +535,13 @@ async function main() {
     if (phase === 'idle' && prev?.failedPreheat && nextSpaEndMs) {
       if (nowMs >= nextSpaEndMs) {
         runLog('INFO', `[HEATING→IDLE] Preheat failed earlier; stopping at event end.`);
-        try { runSpaMacro('spaHeatStop'); } catch (err) {
-          runLog('ERROR', `WARNING: spaHeatStop failed during failedPreheat end: ${err.message}`);
+        const state = await readSnapshot();
+        if (state?.valveState === 'pool') {
+          runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
+        } else {
+          try { runSpaMacro('spaHeatStop'); } catch (err) {
+            runLog('ERROR', `spaHeatStop failed during failedPreheat end: ${err.message}`);
+          }
         }
         saveState(buildState({ phase: 'idle', weather: weather ?? null }));
         return;
@@ -533,6 +552,41 @@ async function main() {
     }
 
     // Normal heating path: activePreheat is set
+    // Re-validate event still exists and end time hasn't changed (C2/C3)
+    const liveEvents = await fetchCalendarEvents(1);
+    const currentEvent = liveEvents.find(e => e.uid === prev?.nextSpaEvent?.uid);
+
+    if (!currentEvent) {
+      // Event was removed — stop heating and notify
+      runLog('INFO', `[HEATING] Event uid=${prev.nextSpaEvent?.uid} no longer on calendar — stopping spa.`);
+      const state = await readSnapshot();
+      if (state?.valveState === 'pool') {
+        runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
+      } else {
+        runLog('INFO', `[HEATING→IDLE] Spa not in pool mode — calling spaHeatStop.`);
+        try { runSpaMacro('spaHeatStop'); } catch (err) {
+          runLog('ERROR', `spaHeatStop failed: ${err.message}`);
+        }
+      }
+      // Send Telegram notification
+      try {
+        const { sendEventCancelledAlert } = require('./telegram');
+        sendEventCancelledAlert(prev.nextSpaEvent?.uid);
+      } catch (err) {
+        runLog('WARNING', `sendEventCancelledAlert failed: ${err.message}`);
+      }
+      saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+      return;
+    }
+
+    if (currentEvent.end !== prev.nextSpaEvent?.end) {
+      // Event end time changed — update persisted end time and continue heating
+      const updatedEndMs = Date.parse(currentEvent.end);
+      runLog('INFO', `[HEATING] Event end time changed from ${prev.nextSpaEvent?.end} to ${currentEvent.end} — updating stop time.`);
+      saveState({ ...prev, nextSpaEventEndMs: updatedEndMs, nextSpaEvent: currentEvent });
+      return;
+    }
+
     const sessionStartMs = Date.parse(prev.activePreheat?.startedAt);
     const maxHeatMs = Number.isFinite(sessionStartMs)
       ? sessionStartMs + (cfg.maxOverrideLeadHours ?? 12) * 3600_000
@@ -559,12 +613,17 @@ async function main() {
     const completionReason = exceededMax && !eventEnded ? 'max-duration' : 'event-ended';
 
     runLog('INFO', `[HEATING→IDLE] Event ended (uid=${prev.nextSpaEvent?.uid}). Calling spaHeatStop.`);
-    try {
-      runSpaMacro('spaHeatStop');
-      runLog('INFO', `[HEATING→IDLE] spaHeatStop succeeded. Returning to pool mode.`);
-    } catch (err) {
-      // spaHeatStop failure should not block finalization; log and continue
-      runLog('ERROR', `WARNING: spaHeatStop failed: ${err.message}`);
+    const state = await readSnapshot();
+    if (state?.valveState === 'pool') {
+      runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
+    } else {
+      try {
+        runSpaMacro('spaHeatStop');
+        runLog('INFO', `[HEATING→IDLE] spaHeatStop succeeded. Returning to pool mode.`);
+      } catch (err) {
+        // spaHeatStop failure should not block finalization; log and continue
+        runLog('ERROR', `WARNING: spaHeatStop failed: ${err.message}`);
+      }
     }
 
     const finalized = finalizeSession(prev.activePreheat, completionReason, { checkedAt });

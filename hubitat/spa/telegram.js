@@ -72,6 +72,50 @@ function sendWeatherApprovalPrompt(approval, nowMs) {
   };
 }
 
+function sendEventCancelledAlert(eventUid) {
+  const cfg = loadConfig();
+
+  if (!cfg.weatherApprovalNotify) {
+    return { ok: false, skipped: true, reason: 'SPA_WEATHER_APPROVAL_NOTIFY is not enabled' };
+  }
+
+  if (!cfg.weatherApprovalTarget) {
+    return { ok: false, skipped: true, reason: 'SPA_WEATHER_APPROVAL_TARGET is not configured' };
+  }
+
+  const message = `Your spa event (uid: ${eventUid}) was removed from the calendar — I've turned off the spa.`;
+
+  const result = spawnSync(cfg.openclawBin, [
+    'message',
+    'send',
+    '--channel', cfg.weatherApprovalChannel,
+    '--target', cfg.weatherApprovalTarget,
+    '--message', message,
+    '--json'
+  ], {
+    encoding: 'utf8',
+    maxBuffer: 2 * 1024 * 1024
+  });
+
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      command: cfg.openclawBin,
+      status: result.status,
+      error: (result.stderr || result.stdout || '').trim()
+    };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(result.stdout || '{}');
+  } catch (e) {
+    parsed = { raw: (result.stdout || '').trim() };
+  }
+
+  return { ok: true, channel: cfg.weatherApprovalChannel, target: cfg.weatherApprovalTarget, result: parsed };
+}
+
 function sendValveFailureAlert() {
   const cfg = loadConfig();
 
@@ -119,4 +163,5 @@ function sendValveFailureAlert() {
 module.exports = {
   sendWeatherApprovalPrompt,
   sendValveFailureAlert,
+  sendEventCancelledAlert,
 };

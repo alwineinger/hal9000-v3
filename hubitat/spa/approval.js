@@ -7,8 +7,10 @@
 const { buildWeatherApprovalPrompt } = require('./weather');
 
 function approvalMatchesContext(approval, nextSpaEvent, preheatStartMs) {
+  // Strict UID check: an approval from event A must never match event B
   if (!approval || !nextSpaEvent || !Number.isFinite(preheatStartMs)) return false;
-  return approval.eventId === nextSpaEvent.uid && approval.preheatStart === new Date(preheatStartMs).toISOString();
+  if (approval.eventId !== nextSpaEvent.uid) return false;
+  return approval.preheatStart === new Date(preheatStartMs).toISOString();
 }
 
 function approvalExpiresMs(approval) {
