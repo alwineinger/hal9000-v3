@@ -205,23 +205,47 @@ function pushSession(history, session) {
   return history;
 }
 
+// ── valve readiness ───────────────────────────────────────────────────────────
+
+const POLL_INTERVAL_MS  = 30_000;  // 30 seconds — frequent enough to catch a 45s transit
+const MAX_TOTAL_WAIT_MS = 600_000; // 10 minutes — cap to prevent indefinite waits
+const RETRY_WAIT_MS     = 60_000;  // 60 seconds — PL-PLUS needs time to process PRESS + transit
+
 /**
- * Wait for valve to reach 'spa' state, with one automatic retry.
- * Returns { valveOk, attempts } where attempts is 1 or 2.
+ * Wait for valve to reach 'spa' state, with up to one automatic retry.
+ * Polls every 30 seconds; 60-second pause after each retry command.
+ * Caps total wait at 10 minutes.
+ * Returns { valveOk, attempts, confirmedState }.
  */
 async function waitForValveReady(retries = 1) {
+  const startMs = Date.now();
+
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
-    await sleep(5 * 60 * 1000);
     const state = await readSnapshot();
     if (state?.valveState === 'spa') {
       return { valveOk: true, attempts: attempt, confirmedState: state };
     }
+
     if (attempt <= retries) {
-      // Retry once: re-invoke spaHeatStart to nudge the valve
-      try { runSpaMacro('spaHeatStart'); } catch { /* best effort */ }
+      const elapsed = Date.now() - startMs;
+      if (elapsed >= MAX_TOTAL_WAIT_MS) break;
+
+      // Retry: re-invoke spaHeatStart to nudge the valve
+      try {
+        runSpaMacro('spaHeatStart');
+      } catch (err) {
+        runLog('WARNING', `[HEATING] Valve retry spaHeatStart failed: ${err.message}`);
+      }
+      // Give the PL-PLUS controller time to process PRESS and complete transit
+      await sleep(RETRY_WAIT_MS);
+    } else {
+      // Final attempt — respect total wait cap
+      const elapsed = Date.now() - startMs;
+      if (elapsed >= MAX_TOTAL_WAIT_MS) break;
+      await sleep(POLL_INTERVAL_MS);
     }
   }
-  // Valve never reached 'spa' after all attempts
+
   return { valveOk: false, attempts: retries + 1, confirmedState: null };
 }
 
