@@ -117,7 +117,9 @@ End-to-end scenarios for the spa scheduling automation. Each scenario documents:
 
 **Actual behavior**: Matches expected. No special handling needed; the `nowMs >= preheatStartMs` check in Phase 2 causes immediate heating.
 
-**Exceptions**: Late events may not fully preheat. Acceptable — system does its best given available time.
+**Actual behavior**: Matches expected. `nowMs >= preheatStartMs` check in Phase 2 causes immediate heating. Telegram notification sent: "Heating started X min late. Estimated ready time: HH:MM AM/PM ET." (implemented commit 270ee45)
+
+**Exceptions**: Spa may not reach 102°F if preheat was delayed. Acceptable — system does its best given available time.
 
 ---
 
