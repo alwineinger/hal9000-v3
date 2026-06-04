@@ -26,7 +26,16 @@ git commit -m "describe changes"
 git push
 ```
 
-## OpenClaw Config Backup
+## Agent Routing Rule (Critical)
+
+**Always use `agentId` when spawning subagents.** Without it, `runtime: "subagent"` defaults to MiniMax-M2.7 regardless of task name.
+
+```javascript
+sessions_spawn({ agentId: "coding_specialist", runtime: "subagent", task: "...", taskName: "..." })
+sessions_spawn({ agentId: "grok", runtime: "subagent", task: "...", taskName: "..." })
+```
+
+Available: `coding_specialist` (DeepSeek-V4-Pro), `grok` (Grok-4.3). Always verify `agents_list` before first spawn in a session.
 
 `~/.openclaw/openclaw.json` is backed up to `config/openclaw.json` in the hal9000-v3 repo. After any config change, commit and push it:
 ```bash
