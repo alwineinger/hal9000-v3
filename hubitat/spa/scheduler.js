@@ -23,7 +23,7 @@ const {
   stampApprovalPrompt,
   decideFromPollResult
 } = require('./approval');
-const { sendWeatherApprovalPrompt } = require('./telegram');
+const { sendWeatherApprovalPrompt, sendValveFailureAlert } = require('./telegram');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const DATA_DIR = path.join(ROOT, 'data');
@@ -430,7 +430,14 @@ async function main() {
     if (!valveResult.valveOk) {
       // Valve failed to reach 'spa' mode after retry — abort session gracefully
       runLog('WARNING', `[HEATING] Valve failed ${valveResult.attempts}x — aborting preheat, no activePreheat session created. Spa will NOT auto-shut off at event end.`);
-      saveState(buildState({ phase: 'idle', weather }));
+      sendValveFailureAlert();
+      saveState({
+        ...prev,
+        phase: 'idle',
+        activePreheat: null,
+        failedPreheat: true,
+        weather,
+      });
       return;
     }
 
@@ -462,13 +469,31 @@ async function main() {
     return;
   }
 
-  // ── PHASE 3: HEATING ───────────────────────────────────────────────────────
-  if (phase === 'heating' && prev?.activePreheat) {
+  // ── PHASE 3: HEATING / FAILED PREHEAT END ────────────────────────────────
+  if ((phase === 'heating' && prev?.activePreheat) ||
+      (phase === 'idle' && prev?.failedPreheat && prev?.nextSpaEventEndMs)) {
     // Use persisted nextSpaEventEndMs if available, falling back to nextSpaEvent.end.
     // This ensures the stop time survives even if nextSpaEvent was cleared during a failed preheat.
     const persistedEndMs = prev?.nextSpaEventEndMs ? Number(prev.nextSpaEventEndMs) : null;
     const nextSpaEndMs = persistedEndMs
       || (prev.nextSpaEvent ? Date.parse(prev.nextSpaEvent.end) : null);
+
+    // Handle idle + failedPreheat: stop at event end, otherwise wait
+    if (phase === 'idle' && prev?.failedPreheat && nextSpaEndMs) {
+      if (nowMs >= nextSpaEndMs) {
+        runLog('INFO', `[HEATING→IDLE] Preheat failed earlier; stopping at event end.`);
+        try { runSpaMacro('spaHeatStop'); } catch (err) {
+          runLog('ERROR', `WARNING: spaHeatStop failed during failedPreheat end: ${err.message}`);
+        }
+        saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+        return;
+      } else {
+        runLog('INFO', `[IDLE] Preheat previously failed, waiting for event end at ${new Date(nextSpaEndMs).toISOString()}.`);
+        return;
+      }
+    }
+
+    // Normal heating path: activePreheat is set
     const sessionStartMs = Date.parse(prev.activePreheat?.startedAt);
     const maxHeatMs = Number.isFinite(sessionStartMs)
       ? sessionStartMs + (cfg.maxOverrideLeadHours ?? 12) * 3600_000
@@ -547,7 +572,14 @@ async function main() {
       if (!valveResult.valveOk) {
         // Valve failed to reach 'spa' mode after retry — abort session gracefully
         runLog('WARNING', `[HEATING] Valve failed ${valveResult.attempts}x — aborting preheat, no activePreheat session created. Spa will NOT auto-shut off at event end.`);
-        saveState(buildState({ phase: 'idle', weather }));
+        sendValveFailureAlert();
+        saveState({
+          ...prev,
+          phase: 'idle',
+          activePreheat: null,
+          failedPreheat: true,
+          weather,
+        });
         return;
       }
 
