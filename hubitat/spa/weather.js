@@ -37,10 +37,13 @@ function isWeatherRisky(weather) {
     const date = day?.date;
     const hours = Array.isArray(day?.hourly) ? day.hourly : [];
     for (const hour of hours) {
-      if (!date) continue;
-      const time = String(hour?.time || '0').padStart(4, '0');
-      const hourDate = new Date(`${date}T${time.slice(0, 2)}:${time.slice(2, 4)}:00`);
-      const hourMs = hourDate.getTime();
+      let hourMs = Number(hour?.atMs);
+      if (!Number.isFinite(hourMs)) {
+        if (!date) continue;
+        const time = String(hour?.time || '0').padStart(4, '0');
+        const hourDate = new Date(`${date}T${time.slice(0, 2)}:${time.slice(2, 4)}:00`);
+        hourMs = hourDate.getTime();
+      }
       if (!Number.isFinite(hourMs) || hourMs < horizonStartMs || hourMs > horizonEndMs) continue;
       const hourDesc = String(hour?.desc || '').toLowerCase();
       const chanceRain = parseIntOrNull(hour?.chanceofrain);

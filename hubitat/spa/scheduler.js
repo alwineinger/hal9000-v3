@@ -175,12 +175,23 @@ function buildState(overrides = {}) {
     phase: 'idle',
     nextSpaEvent: null,
     preheatStartMs: null,
+    weatherCheckMs: null,
+    nextSpaEventEndMs: null,
     leadMinutes: null,
     activePreheat: null,
     weatherApproval: null,
     weather: null,
     ...overrides
   };
+}
+
+function resolveWeatherCheckMs({ nextSpaEvent, preheatStartMs, weatherCheckLeadMin = 30 }) {
+  const eventStartMs = Date.parse(nextSpaEvent?.start || '');
+  if (!Number.isFinite(eventStartMs) || !Number.isFinite(preheatStartMs)) return null;
+
+  const leadMin = Number.isFinite(weatherCheckLeadMin) ? Math.max(0, weatherCheckLeadMin) : 30;
+  const requestedCheckMs = eventStartMs - (leadMin * 60 * 1000);
+  return Math.min(requestedCheckMs, preheatStartMs);
 }
 
 // ── session helpers ──────────────────────────────────────────────────────────
@@ -240,11 +251,13 @@ async function main() {
 
     if (!events.length) {
       // No Spa events — stay idle
+      runLog('INFO', `[IDLE] No Spa events found in next ${days} days.`);
       saveState(buildState({ phase: 'idle', weather }));
       return;
     }
 
     const nextSpaEvent = events[0]; // already sorted by start
+    runLog('INFO', `[IDLE] Event detected: Spa uid=${nextSpaEvent.uid} starting ${nextSpaEvent.start} (ends ${nextSpaEvent.end}).`);
     const nextSpaStartMs = Date.parse(nextSpaEvent.start);
     const nextSpaEndMs   = Date.parse(nextSpaEvent.end);
 
@@ -273,11 +286,21 @@ async function main() {
       maxOverrideLeadHours: cfg.maxOverrideLeadHours ?? 12
     });
     const preheatStartMs = window.preheatStartMs;
+    const weatherCheckMs = resolveWeatherCheckMs({
+      nextSpaEvent,
+      preheatStartMs,
+      weatherCheckLeadMin: cfg.weatherCheckLeadMin
+    });
+
+    // Persist nextSpaEventEndMs so the scheduled stop survives even if nextSpaEvent is cleared
+    const nextSpaEventEndMs = Date.parse(nextSpaEvent.end) || null;
 
     prev = saveState(buildState({
       phase: 'idle',
       nextSpaEvent,
       preheatStartMs,
+      weatherCheckMs,
+      nextSpaEventEndMs,
       leadMinutes: leadMinutesSafe,
       weather,
       overrideStartAt: override?.startAt ?? null,
@@ -298,13 +321,21 @@ async function main() {
     Number.isFinite(prev?.preheatStartMs) &&
     !prev?.activePreheat
   ) {
-    if (nowMs < prev.preheatStartMs) {
-      // Too early — still waiting; just update checkedAt
-      saveState({ ...prev, checkedAt });
+    const weatherCheckMs = Number.isFinite(prev.weatherCheckMs)
+      ? prev.weatherCheckMs
+      : resolveWeatherCheckMs({
+          nextSpaEvent: prev.nextSpaEvent,
+          preheatStartMs: prev.preheatStartMs,
+          weatherCheckLeadMin: cfg.weatherCheckLeadMin
+        });
+
+    if (nowMs < weatherCheckMs) {
+      // Too early for weather evaluation — still waiting; just update checkedAt
+      saveState({ ...prev, checkedAt, weatherCheckMs });
       return;
     }
 
-    // Time to start preheat — check weather risk
+    // Weather can be evaluated before preheat starts so risky conditions can gate heating.
     const weatherRisk = isWeatherRisky(weather);
 
     if (weatherRisk) {
@@ -330,6 +361,8 @@ async function main() {
         saveState({
           ...prev,
           checkedAt,
+          weather,
+          weatherCheckMs,
           phase: 'preheat_pending_approval',
           weatherApproval: stamped
         });
@@ -338,7 +371,7 @@ async function main() {
 
       if (approval?.status === 'pending') {
         // Approval already in flight — transition to waiting state
-        saveState({ ...prev, checkedAt, phase: 'preheat_pending_approval', weatherApproval: approval });
+        saveState({ ...prev, checkedAt, weather, weatherCheckMs, phase: 'preheat_pending_approval', weatherApproval: approval });
         return;
       }
 
@@ -348,11 +381,23 @@ async function main() {
         return;
       }
 
-      // approval status === 'approved' — fall through to start preheat
+      if (approval?.status === 'approved' && nowMs < prev.preheatStartMs) {
+        // Approval is ready early; keep waiting until heating may actually begin.
+        saveState({ ...prev, checkedAt, weather, weatherCheckMs, weatherApproval: approval });
+        return;
+      }
+
+      // approval status === 'approved' and preheat time has arrived — fall through to start preheat
+    } else if (nowMs < prev.preheatStartMs) {
+      // Weather is clear, but heating still waits until the calculated preheat start.
+      saveState({ ...prev, checkedAt, weather, weatherCheckMs });
+      return;
     }
 
     // No weather risk (or approval already granted) — start heating
+    runLog('INFO', `[IDLE→HEATING] Calling spaHeatStart for event uid=${prev.nextSpaEvent?.uid}.`);
     runSpaMacro('spaHeatStart');
+    runLog('INFO', `[HEATING] spaHeatStart succeeded; waiting for valve confirmation.`);
 
     const activatedAt = new Date(Date.now()).toISOString();
 
@@ -361,10 +406,12 @@ async function main() {
 
     if (!valveResult.valveOk) {
       // Valve failed to reach 'spa' mode after retry — abort session gracefully
-      runLog('ERROR', `Valve failed to reach 'spa' mode after ${valveResult.attempts} attempt(s). Aborting session.`);
+      runLog('WARNING', `[HEATING] Valve failed ${valveResult.attempts}x — aborting preheat, no activePreheat session created. Spa will NOT auto-shut off at event end.`);
       saveState(buildState({ phase: 'idle', weather }));
       return;
     }
+
+    runLog('INFO', `[IDLE→ACTIVE] Valve confirmed 'spa'. Session activated at ${activatedAt}.`);
 
     const confirmedState = valveResult.confirmedState;
     const currentCheckedAt = new Date(Date.now()).toISOString();
@@ -394,7 +441,11 @@ async function main() {
 
   // ── PHASE 3: HEATING ───────────────────────────────────────────────────────
   if (phase === 'heating' && prev?.activePreheat) {
-    const nextSpaEndMs = prev.nextSpaEvent ? Date.parse(prev.nextSpaEvent.end) : null;
+    // Use persisted nextSpaEventEndMs if available, falling back to nextSpaEvent.end.
+    // This ensures the stop time survives even if nextSpaEvent was cleared during a failed preheat.
+    const persistedEndMs = prev?.nextSpaEventEndMs ? Number(prev.nextSpaEventEndMs) : null;
+    const nextSpaEndMs = persistedEndMs
+      || (prev.nextSpaEvent ? Date.parse(prev.nextSpaEvent.end) : null);
     const sessionStartMs = Date.parse(prev.activePreheat?.startedAt);
     const maxHeatMs = Number.isFinite(sessionStartMs)
       ? sessionStartMs + (cfg.maxOverrideLeadHours ?? 12) * 3600_000
@@ -402,6 +453,7 @@ async function main() {
 
     const eventEnded = nextSpaEndMs && nowMs >= nextSpaEndMs;
     const exceededMax = maxHeatMs && nowMs >= maxHeatMs;
+    runLog('INFO', `[HEATING] Checking end condition: eventEnded=${eventEnded} (endMs=${nextSpaEndMs}), exceededMax=${exceededMax} (maxMs=${maxHeatMs}).`);
 
     if (!eventEnded && !exceededMax) {
       // Still within event window and max-duration bound — update observation, stay heating
@@ -419,8 +471,10 @@ async function main() {
     // Event ended or max duration exceeded — stop heating and finalize
     const completionReason = exceededMax && !eventEnded ? 'max-duration' : 'event-ended';
 
+    runLog('INFO', `[HEATING→IDLE] Event ended (uid=${prev.nextSpaEvent?.uid}). Calling spaHeatStop.`);
     try {
       runSpaMacro('spaHeatStop');
+      runLog('INFO', `[HEATING→IDLE] spaHeatStop succeeded. Returning to pool mode.`);
     } catch (err) {
       // spaHeatStop failure should not block finalization; log and continue
       runLog('ERROR', `WARNING: spaHeatStop failed: ${err.message}`);
@@ -445,8 +499,22 @@ async function main() {
       const updatedApproval = decideFromPollResult(prev.weatherApproval, 'yes', 'telegram-reply', nowMs);
       writeWeatherApproval(updatedApproval);
 
+      if (Number.isFinite(prev.preheatStartMs) && nowMs < prev.preheatStartMs) {
+        // Approval arrived before heating may begin. Return to the scheduled wait path.
+        saveState({
+          ...prev,
+          checkedAt,
+          phase: 'idle',
+          weather,
+          weatherApproval: updatedApproval
+        });
+        return;
+      }
+
       // Start heating
+      runLog('INFO', `[PREHEAT_PENDING→HEATING] Approval granted. Calling spaHeatStart for uid=${prev.nextSpaEvent?.uid}.`);
       runSpaMacro('spaHeatStart');
+      runLog('INFO', `[HEATING] spaHeatStart succeeded; waiting for valve confirmation.`);
 
       const activatedAt = new Date(Date.now()).toISOString();
 
@@ -455,10 +523,12 @@ async function main() {
 
       if (!valveResult.valveOk) {
         // Valve failed to reach 'spa' mode after retry — abort session gracefully
-        runLog('ERROR', `Valve failed to reach 'spa' mode after ${valveResult.attempts} attempt(s). Aborting session.`);
+        runLog('WARNING', `[HEATING] Valve failed ${valveResult.attempts}x — aborting preheat, no activePreheat session created. Spa will NOT auto-shut off at event end.`);
         saveState(buildState({ phase: 'idle', weather }));
         return;
       }
+
+      runLog('INFO', `[PREHEAT_PENDING→ACTIVE] Valve confirmed 'spa'. Session activated at ${activatedAt}.`);
 
       const confirmedState = valveResult.confirmedState;
       const currentCheckedAt = new Date(Date.now()).toISOString();
@@ -516,4 +586,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { main };
+module.exports = { main, resolveWeatherCheckMs };

@@ -54,7 +54,7 @@ The scheduler has 4 explicit phases:
 - Only triggered when weather is risky (rain/storm within preheat window)
 - One-shot gate — once approved, no re-approval needed during preheat
 - Approval sent via Telegram, reply polled on next launchd cycle
-- Timeout: 30 min, then preheat is skipped
+- Timeout: 5 min, then preheat defaults to YES and proceeds
 
 ### Calendar Integration
 

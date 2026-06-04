@@ -45,7 +45,7 @@ git push
 - Alt calendar: `hubitat/spa/calendar-direct.js` (direct iCloud CalDAV via curl + node-ical)
 - Device state read via: `hubitat/monitor.js` (external dependency)
 - Device control via: `hubitat/control.js` (macros: spaHeatStart, spaHeatStop, etc.)
-- launchd plist: `~/Library/LaunchAgents/ai.openclaw.spa-scheduler.plist` (uses `StartInterval 900`, not `TimerInterval`) — spa override: `~/.openclaw/workspace/data/spa-preheat-override.json`
+- launchd plist: `~/Library/LaunchAgents/ai.openclaw.spa-scheduler.plist` (uses `StartInterval 60`, not `TimerInterval`) — spa override: `~/.openclaw/workspace/data/spa-preheat-override.json`
 - Skill doc: `skills/hubitat/SKILL.md`
 - Device state read via: `hubitat/monitor.js` (external dependency)
 - Device control via: `hubitat/control.js` (macros: spaHeatStart, spaHeatStop, etc.)

@@ -104,4 +104,13 @@ function normalizeEvent(raw) {
 const rawEvents = fetchAllEvents(days);
 const normalized = rawEvents.map(normalizeEvent).filter(event => event.title.toLowerCase() === 'spa');
 
+if (normalized.length === 0) {
+  const startStr = new Date().toISOString().split('T')[0];
+  const endDate = new Date(); endDate.setDate(endDate.getDate() + days);
+  const endStr = endDate.toISOString().split('T')[0];
+  console.error(`[calendar-fetch] No Spa events found in window ${startStr} → ${endStr} (${days} days).`);
+} else {
+  console.error(`[calendar-fetch] Found ${normalized.length} Spa event(s): ${normalized.map(e => e.uid).join(', ')}.`);
+}
+
 process.stdout.write(JSON.stringify(normalized, null, 2) + '\n');

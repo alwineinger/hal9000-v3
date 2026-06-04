@@ -104,6 +104,7 @@ function transformOneCall(data) {
         const thunderStr = thunderChanceFromCode(weatherCode);
         const chanceThunder = thunderStr !== '0' ? thunderStr : String(pop);
         return {
+          atMs: h.dt * 1000,
           time,
           tempF: Math.round(h.temp),
           desc: h.weather?.[0]?.description || '',
@@ -143,6 +144,7 @@ function transformForecast(data) {
         const thunderStr = thunderChanceFromCode(weatherCode);
         const chanceThunder = thunderStr !== '0' ? thunderStr : String(pop);
         return {
+          atMs: item.dt * 1000,
           time,
           tempF: Math.round(item.main?.temp),
           desc: item.weather?.[0]?.description || '',

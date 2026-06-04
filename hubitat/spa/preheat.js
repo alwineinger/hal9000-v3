@@ -92,7 +92,7 @@ function calculateLeadMinutes({ spaTempF, ambientF, weatherDesc, history, config
   }
 
   const penalty = weather ? weatherPenalty(weather) : 1;
-  const rate = Math.max(minRate, effectiveRate) / penalty;
+  const rate = Math.max(minRate, effectiveRate * penalty);
 
   const minutes = Math.max(0, Math.ceil((gap / rate) * 60)) + buffer;
   return minutes;

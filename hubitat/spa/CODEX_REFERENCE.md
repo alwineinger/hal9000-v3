@@ -30,7 +30,7 @@
 |---|---|
 | `hubitat/spa/telegram.js` | Sends Telegram approval prompts via `openclaw message send`. |
 | `hubitat/spa/approval-poll.js` | Polls Telegram for yes/no replies to approval prompts. `--check` updates approval file. |
-| `hubitat/spa/weather-fetch.js` | Fetches OpenWeather One Call API → `{ tempF, desc, precipMm, forecast[] }`. |
+| `hubitat/spa/weather-fetch.js` | Fetches OpenWeather One Call API → `{ tempF, desc, precipMm, forecast[] }`; hourly forecast entries include `atMs`. |
 | `hubitat/spa/calendar-fetch.js` | Calls `khal list` → filters for "Spa" events → JSON `{uid,title,start,end}`. |
 | `hubitat/spa/calendar-direct.js` | Direct iCloud CalDAV via curl + node-ical (alternative to khal). |
 
@@ -59,6 +59,7 @@ BASE_HEAT_RATE_FPH      = 4     // °F/hr default (used as fallback)
 PREHEAT_BUFFER_MIN      = 15    // always added to lead time
 MIN_HEAT_RATE_FPH       = 1.5   // floor after weather penalty
 WEATHER_APPROVAL_TIMEOUT_MIN = 5 // min to respond before approval expires
+WEATHER_CHECK_LEAD_MIN = 30 // min before event start to check weather approval
 MAX_OVERRIDE_LEAD_HOURS = 12    // max preheat window
 
 // preheat.js hardcoded (no env override)
@@ -81,21 +82,27 @@ IDLE (no nextSpaEvent)
       └─ event found
           ├─ calculate leadMinutes (historicalRate → lastObservedRate → baseRate)
           ├─ resolvePreheatWindow() → preheatStartMs
-          └─ Phase: idle + nextSpaEvent + preheatStartMs set
+          └─ Phase: idle + nextSpaEvent + preheatStartMs + weatherCheckMs set
 
 IDLE (nextSpaEvent + preheatStartMs set, no activePreheat)
-  └─ nowMs < preheatStartMs → wait (exit)
-  └─ nowMs >= preheatStartMs
-      ├─ isWeatherRisky() == false → spaHeatStart → HEATING
+  └─ nowMs < weatherCheckMs → wait (exit)
+  └─ nowMs >= weatherCheckMs
+      ├─ isWeatherRisky() == false
+      │   ├─ nowMs < preheatStartMs → wait
+      │   └─ nowMs >= preheatStartMs → spaHeatStart → HEATING
       └─ isWeatherRisky() == true
           ├─ no valid approval → send Telegram prompt → PREHEAT_PENDING_APPROVAL
           ├─ approval pending → stay PREHEAT_PENDING_APPROVAL
-          └─ approval approved → spaHeatStart → HEATING
+          └─ approval approved
+              ├─ nowMs < preheatStartMs → wait
+              └─ nowMs >= preheatStartMs → spaHeatStart → HEATING
 
 PREHEAT_PENDING_APPROVAL
   └─ poll result
-      ├─ approved → spaHeatStart → HEATING
-      ├─ denied/expired → idle
+      ├─ approved before preheatStartMs → idle wait with approval saved
+      ├─ approved at/after preheatStartMs → spaHeatStart → HEATING
+      ├─ expired → status approved with decisionSource expired-default-yes
+      ├─ denied → idle
       └─ still pending → wait (update checkedAt)
 
 HEATING (activePreheat in state)
@@ -110,13 +117,13 @@ HEATING (activePreheat in state)
 Returns `true` (risky) if ANY of:
 1. **Current conditions keyword + precip:** `desc` matches `/rain|storm|thunder|squall|shower/` AND `precipMm >= 2.54` (0.1 inch)
 2. **Current precip alone:** `precipMm >= 2.54` with no keyword
-3. **Forecast hourly window** (now − 30 min → now + 4 hrs):
+3. **Forecast hourly window** (now − 30 min → now + 4 hrs; prefers hourly `atMs`, with legacy date/time fallback):
    - Keyword match in hourly desc → risky
    - `chanceofrain >= 50%` → risky
    - `chanceofthunder >= 35%` → risky
    - Keyword fallback: if `chanceofthunder` missing/0 but desc has `storm|thunder|thunders` → treated as 50%
 
-**Weather penalty** (applied to heating rate):
+**Weather penalty** (multiplied into heating rate before the min floor):
 - Ambient temp < 80°F → `Math.max(0.7, 1 - ((80 - tempF) * 0.03))`
 - Rain/storm keyword in desc → `* 0.9`
 - Combined and floored at `0.7`
@@ -146,7 +153,7 @@ effectiveRate =
   lastObservedRate (if finite) →
   baseRate (config, fallback = 4°F/hr)
 
-rate = max(MIN_HEAT_RATE_FPH, effectiveRate) / weatherPenalty
+rate = max(MIN_HEAT_RATE_FPH, effectiveRate * weatherPenalty)
 
 leadMinutes = ceil((gap / rate) * 60) + PREHEAT_BUFFER_MIN
 ```
@@ -157,7 +164,7 @@ leadMinutes = ceil((gap / rate) * 60) + PREHEAT_BUFFER_MIN
 
 | File | Contents |
 |---|---|
-| `data/spa-state.json` | `{ phase, nextSpaEvent, preheatStartMs, leadMinutes, activePreheat, weatherApproval, weather, checkedAt }` |
+| `data/spa-state.json` | `{ phase, nextSpaEvent, preheatStartMs, weatherCheckMs, leadMinutes, activePreheat, weatherApproval, weather, checkedAt }` |
 | `data/spa-weather-approval.json` | `{ eventId, preheatStart, status, reason, promptText, expiresAt, promptSentAt, decisionAt, decisionSource }` |
 | `data/spa-preheat-history.json` | `{ updatedAt, sessions[] }` — last 40 sessions |
 | `data/spa-preheat-override.json` | `{ startAt: "ISO timestamp" }` — forces preheat start at exact time |
