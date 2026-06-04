@@ -38,6 +38,7 @@ const RUN_LOG_FILE = process.env.SPA_RUN_LOG_FILE || path.join(DATA_DIR, 'spa-sc
 const CALENDAR_SCRIPT     = path.join(__dirname, 'calendar-fetch.js');
 const CONTROL_SCRIPT      = path.join(ROOT, 'hubitat', 'control.js');
 const APPROVAL_POLL_SCRIPT = path.join(__dirname, 'approval-poll.js');
+const { expireApprovalDefaultYes } = require('./approval-poll');
 
 const CALENDAR_LOOK_AHEAD_DAYS = 7;
 
@@ -187,13 +188,9 @@ function buildState(overrides = {}) {
   };
 }
 
-function resolveWeatherCheckMs({ nextSpaEvent, preheatStartMs, weatherCheckLeadMin = 30 }) {
-  const eventStartMs = Date.parse(nextSpaEvent?.start || '');
-  if (!Number.isFinite(eventStartMs) || !Number.isFinite(preheatStartMs)) return null;
-
-  const leadMin = Number.isFinite(weatherCheckLeadMin) ? Math.max(0, weatherCheckLeadMin) : 30;
-  const requestedCheckMs = eventStartMs - (leadMin * 60 * 1000);
-  return Math.min(requestedCheckMs, preheatStartMs);
+function resolveWeatherCheckMs({ preheatStartMs }) {
+  if (!Number.isFinite(preheatStartMs)) return null;
+  return preheatStartMs - 600_000;
 }
 
 // ── session helpers ──────────────────────────────────────────────────────────
@@ -580,14 +577,15 @@ async function main() {
         weatherApproval: updatedApproval
       });
       return;
-    }
-
-    if (pollResult?.status === 'denied' || pollResult?.status === 'expired') {
-      const decisionSource = pollResult.status === 'expired' ? 'expired' : 'telegram-reply';
-      const updatedApproval = decideFromPollResult(prev.weatherApproval, 'no', decisionSource, nowMs);
+    } else if (pollResult?.status === 'expired') {
+      // Fix 7: on expiry, default to YES and proceed with heating
+      const updatedApproval = expireApprovalDefaultYes(prev.weatherApproval, nowMs);
       writeWeatherApproval(updatedApproval);
-
-      // Denied — clear event, go idle
+      // fall through to heating logic below
+    } else if (pollResult?.status === 'denied') {
+      // Explicit deny — go idle
+      const updatedApproval = decideFromPollResult(prev.weatherApproval, 'no', 'telegram-reply', nowMs);
+      writeWeatherApproval(updatedApproval);
       saveState(buildState({
         phase: 'idle',
         weather: weather ?? null,
