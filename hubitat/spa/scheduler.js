@@ -39,6 +39,8 @@ const CALENDAR_SCRIPT     = path.join(__dirname, 'calendar-fetch.js');
 const CONTROL_SCRIPT      = path.join(ROOT, 'hubitat', 'control.js');
 const APPROVAL_POLL_SCRIPT = path.join(__dirname, 'approval-poll.js');
 
+const CALENDAR_LOOK_AHEAD_DAYS = 7;
+
 // ── run log helpers ───────────────────────────────────────────────────────────
 
 function runLog(level, message) {
@@ -271,11 +273,11 @@ async function main() {
 
   // ── PHASE 1: IDLE ─────────────────────────────────────────────────────────
   if (phase === 'idle' && !prev?.activePreheat && !prev?.nextSpaEvent) {
-    const events = await fetchCalendarEvents(7);
+    const events = await fetchCalendarEvents(CALENDAR_LOOK_AHEAD_DAYS);
 
     if (!events.length) {
       // No Spa events — stay idle
-      runLog('INFO', `[IDLE] No Spa events found in next ${days} days.`);
+      runLog('INFO', `[IDLE] No Spa events found in next ${CALENDAR_LOOK_AHEAD_DAYS} days.`);
       saveState(buildState({ phase: 'idle', weather }));
       return;
     }
