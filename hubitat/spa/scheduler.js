@@ -258,7 +258,7 @@ async function waitForValveReady(retries = 1) {
       runLog('WARNING', `[waitForValveReady] readSnapshot failed: ${err.message}. Retrying...`);
       state = null;
     }
-    if (state?.valveState === 'spa') {
+    if (state?.valveState === 'spa' || state?.valveState === 'on') {
       return { valveOk: true, attempts: attempt, confirmedState: state };
     }
 
