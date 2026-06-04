@@ -581,8 +581,10 @@ async function main() {
   // ── PHASE 4: PREHEAT_PENDING_APPROVAL ─────────────────────────────────────
   if (phase === 'preheat_pending_approval' && prev?.weatherApproval) {
     const pollResult = checkWeatherApprovalPoll();
+    let proceedToHeating = false;
 
-    if (pollResult?.status === 'approved') {
+    if (pollResult?.status === 'approved' || pollResult?.status === 'already-approved') {
+      // Fix 8: also handle 'already-approved' (set by approval-poll.js when approval is already confirmed)
       const updatedApproval = decideFromPollResult(prev.weatherApproval, 'yes', 'telegram-reply', nowMs);
       writeWeatherApproval(updatedApproval);
 
@@ -598,8 +600,32 @@ async function main() {
         return;
       }
 
-      // Start heating
-      runLog('INFO', `[PREHEAT_PENDING→HEATING] Approval granted. Calling spaHeatStart for uid=${prev.nextSpaEvent?.uid}.`);
+      // Fall through to shared heating entry below
+      proceedToHeating = true;
+    } else if (pollResult?.status === 'expired') {
+      // Fix 7: on expiry, default YES and fall through to heating (not return)
+      const updatedApproval = expireApprovalDefaultYes(prev.weatherApproval, nowMs);
+      writeWeatherApproval(updatedApproval);
+      proceedToHeating = true;
+    } else if (pollResult?.status === 'denied') {
+      // Explicit deny — go idle
+      const updatedApproval = decideFromPollResult(prev.weatherApproval, 'no', 'telegram-reply', nowMs);
+      writeWeatherApproval(updatedApproval);
+      saveState(buildState({
+        phase: 'idle',
+        weather: weather ?? null,
+        weatherApproval: updatedApproval
+      }));
+      return;
+    } else {
+      // Still pending — nothing to do, just update checkedAt
+      saveState({ ...prev, checkedAt });
+      return;
+    }
+
+    // Shared heating entry — runs for both 'approved'/'already-approved' and expired
+    if (proceedToHeating) {
+      runLog('INFO', `[PREHEAT_PENDING→HEATING] Approval confirmed (${pollResult?.status === 'expired' ? 'expired-default-yes' : 'user/telegram'}). Calling spaHeatStart for uid=${prev.nextSpaEvent?.uid}.`);
       runSpaMacro('spaHeatStart');
       runLog('INFO', `[HEATING] spaHeatStart succeeded; waiting for valve confirmation.`);
 
@@ -645,29 +671,10 @@ async function main() {
         checkedAt: currentCheckedAt,
         phase: 'heating',
         activePreheat,
-        weatherApproval: updatedApproval
+        weatherApproval: readWeatherApproval()
       });
       return;
-    } else if (pollResult?.status === 'expired') {
-      // Fix 7: on expiry, default to YES and proceed with heating
-      const updatedApproval = expireApprovalDefaultYes(prev.weatherApproval, nowMs);
-      writeWeatherApproval(updatedApproval);
-      // fall through to heating logic below
-    } else if (pollResult?.status === 'denied') {
-      // Explicit deny — go idle
-      const updatedApproval = decideFromPollResult(prev.weatherApproval, 'no', 'telegram-reply', nowMs);
-      writeWeatherApproval(updatedApproval);
-      saveState(buildState({
-        phase: 'idle',
-        weather: weather ?? null,
-        weatherApproval: updatedApproval
-      }));
-      return;
     }
-
-    // Still pending — nothing to do, just update checkedAt
-    saveState({ ...prev, checkedAt });
-    return;
   }
 
   // Unknown / stale phase — reset gracefully
