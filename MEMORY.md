@@ -50,7 +50,7 @@ git push
 
 - Spa scheduling lives in: `hubitat/spa/`
 - Entry point: `hubitat/spa/scheduler.js` (launchd-driven, every 15 min)
-- Primary calendar: `hubitat/spa/calendar-fetch.js` (khal reads local .ics, which vdirsyncer keeps fresh via `com.andy.vdirsyncer-sync.plist` polling ~every 15 min)
+- Primary calendar: `hubitat/spa/calendar-fetch.js` (khal reads local .ics, which vdirsyncer keeps fresh via `com.andy.vdirsyncer-sync.plist` polling **every 5 min** (updated 2026-06-04))
 - Alt calendar: `hubitat/spa/calendar-direct.js` (direct iCloud CalDAV via curl + node-ical)
 - Device state read via: `hubitat/monitor.js` (external dependency)
 - Device control via: `hubitat/control.js` (macros: spaHeatStart, spaHeatStop, etc.)
