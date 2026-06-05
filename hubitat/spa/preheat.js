@@ -5,7 +5,6 @@
  */
 
 const { bucket } = require('./utils');
-const { weatherPenalty } = require('./weather');
 
 const TARGET_TEMP_F = 102; // default; callers should pass config value when available
 const BASE_HEAT_RATE_FPH = 15; // 230k BTU heat pump, ~500 gal spa
@@ -63,7 +62,6 @@ function calculateLeadMinutes({ spaTempF, ambientF, weatherDesc, history, config
   const gap = Math.max(0, target - spaTempF);
   if (gap === 0) return 0;
 
-  const weather = { tempF: ambientF, desc: weatherDesc };
   const sessions = Array.isArray(history?.sessions) ? history.sessions : [];
 
   // Primary rate: weighted historical blend (requires score > 0.15)
@@ -91,8 +89,8 @@ function calculateLeadMinutes({ spaTempF, ambientF, weatherDesc, history, config
     effectiveRate = baseRate; // conservative fallback
   }
 
-  const penalty = weather ? weatherPenalty(weather) : 1;
-  const rate = Math.max(minRate, effectiveRate * penalty);
+  // No weatherPenalty — observed rates already capture real-world conditions including ambient temp
+  const rate = Math.max(minRate, effectiveRate);
 
   const minutes = Math.max(0, Math.ceil((gap / rate) * 60)) + buffer;
   return minutes;

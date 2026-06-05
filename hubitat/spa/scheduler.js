@@ -328,8 +328,8 @@ async function main() {
 
     // Clear any stale approval that doesn't match the new event's uid
     const existingApproval = readWeatherApproval();
-    if (existingApproval?.status === 'pending' && existingApproval?.eventId !== nextSpaEvent.uid) {
-      runLog('INFO', `[IDLE] Clearing stale pending approval from uid=${existingApproval?.eventId} — new event uid=${nextSpaEvent.uid}.`);
+    if (existingApproval?.eventId !== nextSpaEvent.uid) {
+      runLog('INFO', `[IDLE] Clearing stale approval from uid=${existingApproval?.eventId} — new event uid=${nextSpaEvent.uid}.`);
       writeWeatherApproval(null);
     }
 
