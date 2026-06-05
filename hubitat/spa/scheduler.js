@@ -570,41 +570,30 @@ async function main() {
     const liveEvents = await fetchCalendarEvents(1);
     const currentEvent = liveEvents.find(e => e.uid === prev?.nextSpaEvent?.uid);
 
-    if (!currentEvent && prev.nextSpaEventEndMs && nowMs > prev.nextSpaEventEndMs) {
-      // Event was removed AND end time has passed — genuine cancellation; stop and notify
-      const wasEventRemoved = true;
-      runLog('INFO', `[HEATING] Event uid=${prev.nextSpaEvent?.uid} no longer on calendar — stopping spa.`);
+    // Branch A: Event end time has passed — normal end, stop silently
+    if (prev.nextSpaEventEndMs && nowMs > prev.nextSpaEventEndMs) {
       const state = await readSnapshot();
       if (state?.valveState === 'pool' || state?.valveState === 'off') {
-        runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
+        runLog('INFO', `[HEATING→IDLE] Event end time passed — spa already in pool mode.`);
       } else {
-        runLog('INFO', `[HEATING→IDLE] Spa not in pool mode — calling spaHeatStop.`);
+        runLog('INFO', `[HEATING→IDLE] Event end time passed — calling spaHeatStop.`);
         try { runSpaMacro('spaHeatStop'); } catch (err) {
           runLog('ERROR', `spaHeatStop failed: ${err.message}`);
         }
-      }
-      // Send Telegram notification — only for genuine cancellation, not normal end
-      try {
-        const { sendEventCancelledAlert } = require('./telegram');
-        sendEventCancelledAlert(prev.nextSpaEvent?.uid);
-      } catch (err) {
-        runLog('WARNING', `sendEventCancelledAlert failed: ${err.message}`);
       }
       saveState(buildState({ phase: 'idle', weather: weather ?? null }));
       return;
     }
 
+    // Branch B: Event gone from calendar but end time not reached — khal edge case, keep heating
     if (!currentEvent) {
-      // Event not found in calendar lookup but end time not yet reached.
-      // Likely a khal day-boundary edge case — continue heating normally.
-      runLog('INFO', `[HEATING] Event uid=${prev.nextSpaEvent?.uid} not in calendar results but end time ${new Date(prev.nextSpaEventEndMs).toISOString()} not reached — continuing (likely khal boundary edge case).`);
-      // Skip end-time-change check; proceed directly to observation / eventEnded check below
+      runLog('INFO', `[HEATING] Event uid=${prev.nextSpaEvent?.uid} not in live calendar but end time not yet reached — continuing (khal boundary edge case).`);
+      // Fall through to eventEnded check below
     } else if (currentEvent.end !== prev.nextSpaEvent?.end) {
-      // Event end time changed — update persisted end time and continue heating
+      // Branch C: Event end time changed — update and continue
       const updatedEndMs = Date.parse(currentEvent.end);
       runLog('INFO', `[HEATING] Event end time changed from ${prev.nextSpaEvent?.end} to ${currentEvent.end} — updating stop time.`);
       saveState({ ...prev, nextSpaEventEndMs: updatedEndMs, nextSpaEvent: currentEvent });
-      return;
     }
 
     const sessionStartMs = Date.parse(prev.activePreheat?.startedAt);
