@@ -396,13 +396,37 @@ async function main() {
     Number.isFinite(prev?.preheatStartMs) &&
     !prev?.activePreheat
   ) {
-    const weatherCheckMs = Number.isFinite(prev.weatherCheckMs)
-      ? prev.weatherCheckMs
-      : resolveWeatherCheckMs({
-          nextSpaEvent: prev.nextSpaEvent,
-          preheatStartMs: prev.preheatStartMs,
-          weatherCheckLeadMin: cfg.weatherCheckLeadMin
-        });
+    // Phase 1 calculated leadMinutes at event detection time (potentially
+    // hours ago). Re-read the current spa temp and recompute the preheat
+    // window to avoid over/under-heating from stale readings.
+    const freshLeadMinutes = calculateLeadMinutes({
+      spaTempF: currentState?.spaTempF,
+      ambientF: weather?.tempF,
+      weatherDesc: weather?.desc,
+      history: readHistory(),
+      config: cfg
+    });
+
+    const freshLeadMinutesSafe = freshLeadMinutes ?? prev.leadMinutes ?? 60;
+    const freshWindow = resolvePreheatWindow({
+      nextSpaEvent: prev.nextSpaEvent,
+      leadMinutes: freshLeadMinutesSafe,
+      override: readOverride(),
+      maxOverrideLeadHours: cfg.maxOverrideLeadHours ?? 12
+    });
+
+    prev = {
+      ...prev,
+      leadMinutes: freshLeadMinutesSafe,
+      preheatStartMs: freshWindow.preheatStartMs,
+      weatherCheckMs: resolveWeatherCheckMs({
+        nextSpaEvent: prev.nextSpaEvent,
+        preheatStartMs: freshWindow.preheatStartMs,
+        weatherCheckLeadMin: cfg.weatherCheckLeadMin
+      })
+    };
+
+    const weatherCheckMs = prev.weatherCheckMs;
 
     if (nowMs < weatherCheckMs) {
       // Too early for weather evaluation — still waiting; just update checkedAt
