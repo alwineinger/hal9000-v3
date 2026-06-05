@@ -570,8 +570,9 @@ async function main() {
     const liveEvents = await fetchCalendarEvents(1);
     const currentEvent = liveEvents.find(e => e.uid === prev?.nextSpaEvent?.uid);
 
-    if (!currentEvent) {
-      // Event was removed — stop heating and notify
+    if (!currentEvent && prev.nextSpaEventEndMs && nowMs > prev.nextSpaEventEndMs) {
+      // Event was removed AND end time has passed — genuine cancellation; stop and notify
+      const wasEventRemoved = true;
       runLog('INFO', `[HEATING] Event uid=${prev.nextSpaEvent?.uid} no longer on calendar — stopping spa.`);
       const state = await readSnapshot();
       if (state?.valveState === 'pool' || state?.valveState === 'off') {
@@ -582,7 +583,7 @@ async function main() {
           runLog('ERROR', `spaHeatStop failed: ${err.message}`);
         }
       }
-      // Send Telegram notification
+      // Send Telegram notification — only for genuine cancellation, not normal end
       try {
         const { sendEventCancelledAlert } = require('./telegram');
         sendEventCancelledAlert(prev.nextSpaEvent?.uid);
@@ -593,7 +594,12 @@ async function main() {
       return;
     }
 
-    if (currentEvent.end !== prev.nextSpaEvent?.end) {
+    if (!currentEvent) {
+      // Event not found in calendar lookup but end time not yet reached.
+      // Likely a khal day-boundary edge case — continue heating normally.
+      runLog('INFO', `[HEATING] Event uid=${prev.nextSpaEvent?.uid} not in calendar results but end time ${new Date(prev.nextSpaEventEndMs).toISOString()} not reached — continuing (likely khal boundary edge case).`);
+      // Skip end-time-change check; proceed directly to observation / eventEnded check below
+    } else if (currentEvent.end !== prev.nextSpaEvent?.end) {
       // Event end time changed — update persisted end time and continue heating
       const updatedEndMs = Date.parse(currentEvent.end);
       runLog('INFO', `[HEATING] Event end time changed from ${prev.nextSpaEvent?.end} to ${currentEvent.end} — updating stop time.`);
@@ -679,6 +685,15 @@ async function main() {
       // Fix 7: on expiry, default YES and fall through to heating (not return)
       const updatedApproval = expireApprovalDefaultYes(prev.weatherApproval, nowMs);
       writeWeatherApproval(updatedApproval);
+
+      // Guard: if approval expired at or after the event end time, go idle silently.
+      // No Telegram alert, no spaHeatStop — the event simply won't preheat.
+      if (prev.nextSpaEventEndMs && nowMs > prev.nextSpaEventEndMs) {
+        runLog('INFO', `[PREHEAT_PENDING→IDLE] Approval expired but event end time (${new Date(prev.nextSpaEventEndMs).toISOString()}) already passed — idle.`);
+        saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+        return;
+      }
+
       proceedToHeating = true;
     } else if (pollResult?.status === 'denied') {
       // Explicit deny — go idle
