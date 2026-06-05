@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>ai.openclaw.spa-scheduler</string>
+
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StartInterval</key>
+	<integer>60</integer>
+	<key>ExitTimeOut</key>
+	<integer>60</integer>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>Umask</key>
+	<integer>63</integer>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/node</string>
+		<string>/Users/oc_user/.openclaw/workspace/hubitat/spa/scheduler.js</string>
+	</array>
+
+	<key>WorkingDirectory</key>
+	<string>/Users/oc_user/.openclaw/workspace</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/Users/oc_user/Library/Python/3.9/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>HUBITAT_TOKEN_FILE</key>
+		<string>/Users/oc_user/.openclaw/secrets/hubitat-api-key.txt</string>
+		<key>SPA_CALENDAR_DAYS</key>
+		<string>7</string>
+		<key>SPA_WEATHER_APPROVAL_CHANNEL</key>
+		<string>telegram</string>
+		<key>SPA_WEATHER_APPROVAL_TARGET</key>
+		<string>8004363273</string>
+		<key>SPA_WEATHER_APPROVAL_NOTIFY</key>
+		<string>1</string>
+		<key>SPA_WEATHER_APPROVAL_TIMEOUT_MIN</key>
+		<string>20</string>
+		<key>OPENCLAW_BIN</key>
+		<string>/opt/homebrew/bin/openclaw</string>
+	</dict>
+
+	<key>StandardOutPath</key>
+	<string>/tmp/spa-scheduler.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/spa-scheduler.err</string>
+</dict>
+</plist>
