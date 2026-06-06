@@ -22,12 +22,11 @@ function weatherPenalty(weather) {
 function isWeatherRisky(weather) {
   if (!weather) return false;
   const desc = String(weather.desc || '').toLowerCase();
-  if (/rain|storm|thunder|squall|shower/.test(desc)) {
-    if (Number.isFinite(weather.precipMm) && weather.precipMm >= 2.54) return true;
-    return false; // keyword match but insufficient precip — not risky
-  }
+  // Check current precip: heavy rain is immediately risky regardless of forecast
   if (Number.isFinite(weather.precipMm) && weather.precipMm >= 2.54) return true;
 
+  // If current conditions have risk keywords but insufficient precip,
+  // still evaluate the hourly forecast before deciding — no short-circuit return.
   const forecasts = Array.isArray(weather.forecast) ? weather.forecast : [];
   const nowMs = Date.now();
   const horizonStartMs = nowMs - (30 * 60 * 1000);

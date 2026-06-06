@@ -9,7 +9,12 @@ const fetch = require('node:http');
 // Config — these are read from env or defaults
 const HUB_HOST = process.env.HUBITAT_HUB_HOST || '10.40.1.227';
 const HUB_APP_ID = process.env.HUBITAT_APP_ID || '2321';
-const HUB_TOKEN = process.env.HUBITAT_ACCESS_TOKEN || '108c58a4-aeff-4301-9610-7dd56b40a035';
+const HUB_TOKEN = process.env.HUBITAT_TOKEN
+  || (process.env.HUBITAT_TOKEN_FILE ? require('fs').readFileSync(process.env.HUBITAT_TOKEN_FILE, 'utf8').trim() : null);
+
+if (!HUB_TOKEN) {
+  throw new Error('Missing HUBITAT_TOKEN (set HUBITAT_TOKEN env var or HUBITAT_TOKEN_FILE path)');
+}
 
 const BASE_URL = `http://${HUB_HOST}/apps/api/${HUB_APP_ID}`;
 const TOKEN_PARAM = `access_token=${HUB_TOKEN}`;

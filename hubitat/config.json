@@ -3,15 +3,15 @@
     "ip": "10.40.1.227",
     "appId": "2321"
   },
-  "devices": {
-    "poolMode":     "2140",
-    "spaScheduler": {
+  "spaScheduler": {
     "pollIntervalMin": 15,
     "lookAheadDays": 7,
     "preheatLookAheadMin": 15,
     "approvalTimeoutMin": 30
   },
-  "spaMode":      "2141",
+  "devices": {
+    "poolMode":     "2140",
+    "spaMode":      "2141",
     "heaterPower":  "2131",
     "heaterAuto":   "2138",
     "heaterRun":    "2137",

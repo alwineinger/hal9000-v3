@@ -285,6 +285,65 @@ async function waitForValveReady(retries = 1) {
   return { valveOk: false, attempts: retries + 1, confirmedState: null };
 }
 
+// ── circuit breaker ──────────────────────────────────────────────────────────
+
+function loadCircuitBreaker() {
+  const state = loadState();
+  return state._cb || { hubitatFailures: 0, weatherFailures: 0, hubitatBackOffUntilMs: null, weatherBackOffUntilMs: null };
+}
+
+function saveCircuitBreaker(cb) {
+  const state = loadState();
+  state._cb = cb;
+  saveState(state);
+}
+
+function isHubitatBackOff(cb) {
+  return cb.hubitatBackOffUntilMs && Date.now() < cb.hubitatBackOffUntilMs;
+}
+
+function isWeatherBackOff(cb) {
+  return cb.weatherBackOffUntilMs && Date.now() < cb.weatherBackOffUntilMs;
+}
+
+function recordHubitatSuccess(cb) {
+  if (cb.hubitatFailures > 0) {
+    runLog('INFO', `[CircuitBreaker] Hubitat recovered — resetting failure count (was ${cb.hubitatFailures}).`);
+  }
+  cb.hubitatFailures = 0;
+  cb.hubitatBackOffUntilMs = null;
+  saveCircuitBreaker(cb);
+}
+
+function recordHubitatFailure(cb) {
+  cb.hubitatFailures++;
+  if (cb.hubitatFailures >= 3) {
+    const backoffSec = Math.min(30 * Math.pow(2, cb.hubitatFailures), 300);
+    cb.hubitatBackOffUntilMs = Date.now() + backoffSec * 1000;
+    runLog('WARNING', `[CircuitBreaker] Hubitat ${cb.hubitatFailures} consecutive failures — entering backoff for ${backoffSec}s until ${new Date(cb.hubitatBackOffUntilMs).toISOString()}.`);
+  }
+  saveCircuitBreaker(cb);
+}
+
+function recordWeatherSuccess(cb) {
+  if (cb.weatherFailures > 0) {
+    runLog('INFO', `[CircuitBreaker] Weather recovered — resetting failure count (was ${cb.weatherFailures}).`);
+  }
+  cb.weatherFailures = 0;
+  cb.weatherBackOffUntilMs = null;
+  saveCircuitBreaker(cb);
+}
+
+function recordWeatherFailure(cb) {
+  cb.weatherFailures++;
+  if (cb.weatherFailures >= 3) {
+    const backoffSec = Math.min(30 * Math.pow(2, cb.weatherFailures), 300);
+    cb.weatherBackOffUntilMs = Date.now() + backoffSec * 1000;
+    runLog('WARNING', `[CircuitBreaker] Weather ${cb.weatherFailures} consecutive failures — entering backoff for ${backoffSec}s until ${new Date(cb.weatherBackOffUntilMs).toISOString()}.`);
+  }
+  saveCircuitBreaker(cb);
+}
+
 // ── main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -306,11 +365,43 @@ async function main() {
   let prev = loadState();
   const phase = prev?.phase || 'idle';
 
-  // Fetch current device snapshot once per run
-  const currentState = await readSnapshot();
+  // Fetch current device snapshot once per run (with circuit breaker)
+  const cb = loadCircuitBreaker();
+  let currentState = {};
+  let weather = prev?.weather ?? null;
 
-  // Fetch current weather for risk evaluation
-  const weather = fetchWeather() ?? currentState?.weather ?? null;
+  if (!isHubitatBackOff(cb)) {
+    try {
+      currentState = await readSnapshot();
+      recordHubitatSuccess(cb);
+    } catch (err) {
+      runLog('WARNING', `[CircuitBreaker] readSnapshot failed: ${err.message}`);
+      recordHubitatFailure(loadCircuitBreaker());
+      currentState = prev ?? {};
+    }
+  } else {
+    runLog('WARNING', `[CircuitBreaker] Hubitat in backoff — skipping readSnapshot.`);
+    currentState = prev ?? {};
+  }
+
+  // Fetch current weather for risk evaluation (with circuit breaker)
+  if (!isWeatherBackOff(loadCircuitBreaker())) {
+    try {
+      const fresh = fetchWeather();
+      if (fresh) {
+        weather = fresh;
+        recordWeatherSuccess(loadCircuitBreaker());
+      } else {
+        runLog('WARNING', `[CircuitBreaker] fetchWeather returned null — counting as failure.`);
+        recordWeatherFailure(loadCircuitBreaker());
+      }
+    } catch (err) {
+      runLog('WARNING', `[CircuitBreaker] fetchWeather failed: ${err.message}`);
+      recordWeatherFailure(loadCircuitBreaker());
+    }
+  } else {
+    runLog('WARNING', `[CircuitBreaker] Weather in backoff — skipping fetchWeather.`);
+  }
 
   // ── PHASE 1: IDLE ─────────────────────────────────────────────────────────
   if (phase === 'idle' && !prev?.activePreheat && !prev?.nextSpaEvent) {
