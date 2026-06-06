@@ -11,10 +11,6 @@
 	<integer>60</integer>
 	<key>ExitTimeOut</key>
 	<integer>60</integer>
-	<key>ProcessType</key>
-	<string>Interactive</string>
-	<key>Umask</key>
-	<integer>63</integer>
 
 	<key>ProgramArguments</key>
 	<array>
@@ -39,14 +35,14 @@
 		<key>SPA_WEATHER_APPROVAL_NOTIFY</key>
 		<string>1</string>
 		<key>SPA_WEATHER_APPROVAL_TIMEOUT_MIN</key>
-		<string>20</string>
+		<string>5</string>
 		<key>OPENCLAW_BIN</key>
 		<string>/opt/homebrew/bin/openclaw</string>
 	</dict>
 
 	<key>StandardOutPath</key>
-	<string>/tmp/spa-scheduler.log</string>
+	<string>/Users/oc_user/tmp/spa-scheduler.log</string>
 	<key>StandardErrorPath</key>
-	<string>/tmp/spa-scheduler.err</string>
+	<string>/Users/oc_user/tmp/spa-scheduler.err</string>
 </dict>
 </plist>

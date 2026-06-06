@@ -12,7 +12,7 @@ Scope: All files in the audit list (scheduler, session, approval, control, monit
 | 2 | `id` vs `uid` field mismatch | `session.js` | `buildPreheatSession` used `nextSpaEvent.id` (undefined) for both `sessionId` and `eventId`. The calendar produces `uid`. | FIXED |
 | 3 | Incorrect finalization path in scheduler | `scheduler.js` | Phase 3 did call `spaHeatStop` and `finalizeSession` on event end, but if `spaHeatStop` threw, the state would remain stuck "heating". Also lacking a max-duration safety net for missing/invalid event end times. | FIXED |
 | 4 | Guardrail error message copy-paste error | `control.js` | `"spaMode on blocked while spaMode is already on"` (should reference `poolMode`). | FIXED |
-| 5 | No resilience against device commands | `scheduler.js` | `runSpaMacro` failures during finalization would blow up `main()` and leave state `heating` indefinitely on that run; the next 15-min run had a chance but no guarantee. | FIXED |
+| 5 | No resilience against device commands | `scheduler.js` | `runSpaMacro` failures during finalization would blow up `main()` and leave state `heating` indefinitely on that run; the next 60-second run had a chance but no guarantee. | FIXED |
 | 6 | Audit hygiene | `session.js` | Added header docstring clarifying the intended meaning of the *three* minute fields (delta vs. total vs. session-level summary). | FIXED |
 
 ## 2. Data Flow Verified (call-graph)
@@ -38,7 +38,7 @@ States/phases (exact transitions):
 - `idle`             → collects events → `preheat_pending` (or immediate `heating` if `preheatStartMs <= now` and no weather block).
 - `preheat_pending`  → `heating` if weather risk absent or prior approval granted.
 - `preheat_pending_approval` → waits on `approval-poll.js --check` (spawned) → `approved` (Phase 4→heating) or `denied/expired` (→`idle`).
-- `heating`          → observations updated every tick (15 min real schedule, more dense in test state files); on `now >= eventEnd` (or max duration), runs `spaHeatStop`, calls `finalizeSession`, then `idle`.
+- `heating`          → observations updated every tick (60-second real schedule, more dense in test state files); on `now >= eventEnd` (or max duration), runs `spaHeatStop`, calls `finalizeSession`, then `idle`.
 - `idle` + no events → `idle`.
 
 ## 3. Important Date/Time Consistency Findings
@@ -53,7 +53,7 @@ States/phases (exact transitions):
 
 - Design choice: `spaHeatStop` deliberately leaves `heaterPower` ON (only turns `heaterAuto` OFF and restores valves to pool). This matches `poolNormal` behavior and appears intentional for shared filter/pump hardware.
 - `valveOk` variable computed but unused in Phase 2 heater start path — cosmetic.
-- `weather` snapshot at `main()` entry freezes for the entire 15-min run; fresh forecasts are used at the next tick. Acceptable.
+- `weather` snapshot at `main()` entry freezes for the entire 60-second run; fresh forecasts are used at the next tick. Acceptable.
 - Low-frequency edge (calendar returns non-Spa events, empty array handling, etc.) follows existing robustness opinions that were not changed.
 - Launchd plist environment variable verification was completed by inspection of the source (all references match documented variables); a live Mac side-by-side dump was not performed within the allotted time. The (already-fixed) `SPA_WEATHER_APPROVAL_TARGET` format issue is documented in the prompt as handled elsewhere.
 
@@ -61,7 +61,7 @@ States/phases (exact transitions):
 
 1. After commit+push, `git diff --name-only` should show `session.js`, `scheduler.js`, `control.js`, `AUDIT_FINDINGS.md`.
 2. Before the next prod scheduler tick, temporarily **force-finalize the current stuck session** via direct edit of `data/spa-state.json` (or wait one wall-clock hour for the event-end time to roll since the offending state was captured pre-end). Both approaches will prove finalization works.
-3. Run the scheduler locally (`node spa/scheduler.js`) inside the 15-min window where the (fixed) session should stop observing and correctly transition while writing the stop macro + finalized session to history. Observe `observedMinutes` values are sane (never exceed total wall minutes of the preheat).
+3. Run the scheduler locally (`node spa/scheduler.js`) inside the 60-second window where the (fixed) session should stop observing and correctly transition while writing the stop macro + finalized session to history. Observe `observedMinutes` values are sane (never exceed total wall minutes of the preheat).
 4. Confirm `data/spa-weather-approval.json` handling in the dirty state (it contains an `approved` approval from before the current run). The fresh scheduler run will ignore it for event `0D10EFFB...` because `approvalMatchesContext` requires both `uid` and `preheatStart` to match.
 
 ## 6. Rollback Guidance
@@ -83,7 +83,7 @@ git commit -am "revert(spa): back out audit fixes for investigation"
 
 ## 7. Post-Audit Code State Assertions
 
-- `session.observedMinutes` computed from `Date.parse(session.startedAt)` each tick ⇒ strictly monotonically increasing by the scheduler interval (every 15 real min, or ~1 in the test harness).
+- `session.observedMinutes` computed from `Date.parse(session.startedAt)` each tick ⇒ strictly monotonically increasing by the scheduler interval (every 60 real seconds, or ~1 in the test harness).
 - Each observation `elapsedMinutes` = minutes since start of that session (non-accumulating).
 - `observedRateFPerHour` is recomputed correctly from first/last valid temperature deltas divided by real total minutes.
 - `finalizeSession` is now armored by `try/catch` around `spaHeatStop`, guaranteed to write `completedAt` + `completionReason` and return the state to `idle`.

@@ -1,7 +1,7 @@
 # Spa Automation Design
 
 ### Overview
-The spa automation ensures the spa reaches 102°F by the start of a calendar "Spa" event. It is implemented as a state machine driven by a launchd agent (every 15 min), with state persisted in data files.
+The spa automation ensures the spa reaches 102°F by the start of a calendar "Spa" event. It is implemented as a state machine driven by a launchd agent (every 60 seconds), with state persisted in data files.
 
 ### Architecture
 
@@ -87,7 +87,7 @@ The scheduler has 4 explicit phases:
 | 1451 | Lanai Temp/Humidity (preferred ambient) |
 
 ### Launchd Integration
-- launchd fires every 15 minutes via `StartInterval` (not `TimerInterval` — macOS requires `StartInterval`)
+- launchd fires every 60 seconds via `StartInterval` (not `TimerInterval` — macOS requires `StartInterval`)
 - launchd runs: `node hubitat/spa/scheduler.js`
 - Plist: `~/Library/LaunchAgents/ai.openclaw.spa-scheduler.plist`
 - Scheduler is stateless — reads/writes `data/spa-state.json` for all context

@@ -177,7 +177,7 @@ leadMinutes = ceil((gap / rate) * 60) + PREHEAT_BUFFER_MIN
 ```xml
 <key>Label</key><string>ai.openclaw.spa-scheduler</string>
 <key>RunAtLoad</key><true/>
-<key>StartInterval</key><integer>60</integer>  <!-- fires every 60 sec, not 15 min — NOTE: log says 15 min in DESIGN.md but plist says 60 sec -->
+<key>StartInterval</key><integer>60</integer>  <!-- fires every 60 sec — all docs now reflect 60 sec -->
 
 <key>EnvironmentVariables</key>
 <dict>
@@ -232,7 +232,7 @@ Note: `heaterPower` is intentionally NOT turned off — shared filter/pump hardw
 
 ## Known Design Quirks
 
-1. **launchd fires every 60 sec** (`StartInterval: 60` in plist), not every 15 min. DESIGN.md says 15 min but the actual plist uses 60 sec. The scheduler itself is stateless and self-rate-limited by state transitions.
+1. **launchd fires every 60 sec** (`StartInterval: 60` in plist). All docs now consistently reflect 60 seconds. The scheduler itself is stateless and self-rate-limited by state transitions.
 
 2. **preheat.js hardcoded constants differ from config.js defaults** — BASE_HEAT_RATE_FPH is 15 in preheat.js but 4 in config.js DEFAULTS. The effective value depends on what `config` object is passed in.
 

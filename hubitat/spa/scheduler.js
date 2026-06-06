@@ -2,7 +2,7 @@
  * spa/scheduler.js
  * Stateless launchd-based scheduler. All state lives in data/spa-state.json.
  *
- * Runs every 15 min via launchd. Coordinates pure modules + side-effect
+ * Runs every 60 seconds via launchd. Coordinates pure modules + side-effect
  * boundaries (calendar fetch, weather, telegram). No setTimeout, no continuous
  * polling — every run is self-contained.
  */
@@ -384,7 +384,7 @@ async function main() {
     }));
 
     // Phase 1 done — state saved, preheat window set.
-    // Phase 2 will evaluate preheat readiness on the next launchd firing (15 min later).
+    // Phase 2 will evaluate preheat readiness on the next launchd firing (~60 seconds later).
     return;
   }
 
