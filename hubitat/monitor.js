@@ -9,9 +9,15 @@ const fetch = require('node:http');
 // Config — these are read from env or defaults
 const HUB_HOST = process.env.HUBITAT_HUB_HOST || '10.40.1.227';
 const HUB_APP_ID = process.env.HUBITAT_APP_ID || '2321';
-const HUB_TOKEN = process.env.HUBITAT_TOKEN
-  || (process.env.HUBITAT_TOKEN_FILE ? require('fs').readFileSync(process.env.HUBITAT_TOKEN_FILE, 'utf8').trim() : null);
-
+let tokenFromFile = null;
+if (process.env.HUBITAT_TOKEN_FILE) {
+  try {
+    tokenFromFile = require('fs').readFileSync(process.env.HUBITAT_TOKEN_FILE, 'utf8').trim();
+  } catch (err) {
+    throw new Error(`HUBITAT_TOKEN_FILE was set but could not be read (${process.env.HUBITAT_TOKEN_FILE}): ${err.code || err.message}`);
+  }
+}
+const HUB_TOKEN = process.env.HUBITAT_TOKEN || tokenFromFile;
 if (!HUB_TOKEN) {
   throw new Error('Missing HUBITAT_TOKEN (set HUBITAT_TOKEN env var or HUBITAT_TOKEN_FILE path)');
 }

@@ -203,7 +203,7 @@ function saveState(state) {
   return state;
 }
 
-function buildState(overrides = {}) {
+function buildState(overrides = {}, cb) {
   return {
     checkedAt: new Date(Date.now()).toISOString(),
     phase: 'idle',
@@ -215,7 +215,8 @@ function buildState(overrides = {}) {
     activePreheat: null,
     weatherApproval: null,
     weather: null,
-    ...overrides
+    ...overrides,
+    ...(cb ? { _cb: cb } : {}),
   };
 }
 
@@ -376,7 +377,7 @@ async function main() {
       recordHubitatSuccess(cb);
     } catch (err) {
       runLog('WARNING', `[CircuitBreaker] readSnapshot failed: ${err.message}`);
-      recordHubitatFailure(loadCircuitBreaker());
+      recordHubitatFailure(cb);
       currentState = prev ?? {};
     }
   } else {
@@ -385,19 +386,19 @@ async function main() {
   }
 
   // Fetch current weather for risk evaluation (with circuit breaker)
-  if (!isWeatherBackOff(loadCircuitBreaker())) {
+  if (!isWeatherBackOff(cb)) {
     try {
       const fresh = fetchWeather();
       if (fresh) {
         weather = fresh;
-        recordWeatherSuccess(loadCircuitBreaker());
+        recordWeatherSuccess(cb);
       } else {
         runLog('WARNING', `[CircuitBreaker] fetchWeather returned null — counting as failure.`);
-        recordWeatherFailure(loadCircuitBreaker());
+        recordWeatherFailure(cb);
       }
     } catch (err) {
       runLog('WARNING', `[CircuitBreaker] fetchWeather failed: ${err.message}`);
-      recordWeatherFailure(loadCircuitBreaker());
+      recordWeatherFailure(cb);
     }
   } else {
     runLog('WARNING', `[CircuitBreaker] Weather in backoff — skipping fetchWeather.`);
@@ -410,7 +411,7 @@ async function main() {
     if (!events.length) {
       // No Spa events — stay idle
       runLog('INFO', `[IDLE] No Spa events found in next ${CALENDAR_LOOK_AHEAD_DAYS} days.`);
-      saveState(buildState({ phase: 'idle', weather }));
+      saveState(buildState({ phase: 'idle', weather }, cb));
       return;
     }
 
@@ -429,7 +430,7 @@ async function main() {
 
     // Skip events that have already ended — no point scheduling preheat for a past event
     if (nextSpaEndMs && nowMs > nextSpaEndMs) {
-      saveState(buildState({ phase: 'idle', weather }));
+      saveState(buildState({ phase: 'idle', weather }, cb));
       return;
     }
 
@@ -472,7 +473,7 @@ async function main() {
       overrideStartAt: override?.startAt ?? null,
       overrideApplied: window.overrideApplied,
       overrideIgnored: window.overrideIgnored
-    }));
+    }, cb));
 
     // Phase 1 done — state saved, preheat window set.
     // Phase 2 will evaluate preheat readiness on the next launchd firing (~60 seconds later).
@@ -567,7 +568,7 @@ async function main() {
 
       if (approval?.status === 'denied') {
         // Weather denied — clear event, go idle
-        saveState(buildState({ phase: 'idle', weather }));
+        saveState(buildState({ phase: 'idle', weather }, cb));
         return;
       }
 
@@ -672,7 +673,7 @@ async function main() {
             runLog('ERROR', `spaHeatStop failed during failedPreheat end: ${err.message}`);
           }
         }
-        saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+        saveState(buildState({ phase: 'idle', weather: weather ?? null }, cb));
         return;
       } else {
         runLog('INFO', `[IDLE] Preheat previously failed, waiting for event end at ${new Date(nextSpaEndMs).toISOString()}.`);
@@ -696,7 +697,7 @@ async function main() {
           runLog('ERROR', `spaHeatStop failed: ${err.message}`);
         }
       }
-      saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+      saveState(buildState({ phase: 'idle', weather: weather ?? null }, cb));
       return;
     }
 
@@ -757,7 +758,7 @@ async function main() {
     writeHistory(history);
 
     // Return to idle, no nextSpaEvent, no activePreheat
-    saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+    saveState(buildState({ phase: 'idle', weather: weather ?? null }, cb));
     return;
   }
 
@@ -794,7 +795,7 @@ async function main() {
       // No Telegram alert, no spaHeatStop — the event simply won't preheat.
       if (prev.nextSpaEventEndMs && nowMs > prev.nextSpaEventEndMs) {
         runLog('INFO', `[PREHEAT_PENDING→IDLE] Approval expired but event end time (${new Date(prev.nextSpaEventEndMs).toISOString()}) already passed — idle.`);
-        saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+        saveState(buildState({ phase: 'idle', weather: weather ?? null }, cb));
         return;
       }
 
@@ -807,7 +808,7 @@ async function main() {
         phase: 'idle',
         weather: weather ?? null,
         weatherApproval: updatedApproval
-      }));
+      }, cb));
       return;
     } else {
       // Still pending — nothing to do, just update checkedAt
@@ -870,7 +871,7 @@ async function main() {
   }
 
   // Unknown / stale phase — reset gracefully
-  saveState(buildState({ phase: 'idle', weather: weather ?? null }));
+  saveState(buildState({ phase: 'idle', weather: weather ?? null }, cb));
   } finally {
     releaseLock();
   }
