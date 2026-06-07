@@ -135,6 +135,17 @@ async function setSwitch(alias, cmd, opts = {}) {
   const id = cfg.devices[alias];
   if (!id) throw new Error(`Unknown alias: ${alias}`);
   await enforce(alias, cmd, opts);
+
+  // Skip if already in desired state (reduces Hubitat load + prevents unnecessary commands)
+  try {
+    const current = await getSwitch(alias);
+    if (current === cmd) {
+      return { alias, cmd, ok: true, skipped: true };
+    }
+  } catch {
+    // getSwitch failed — proceed with command anyway
+  }
+
   const result = await apiPost(`/devices/${id}/${cmd}`);
   return { alias, cmd, ok: true, result };
 }

@@ -260,7 +260,7 @@ async function waitForValveReady(retries = 1) {
       state = null;
     }
     if (state?.valveState === 'spa' || state?.valveState === 'on') {
-      return { valveOk: true, attempts: attempt, confirmedState: state };
+      return { valveOk: true, attempts: attempt, confirmedState: state, heaterAuto: state?.heaterAuto };
     }
 
     if (attempt <= retries) {
@@ -666,9 +666,12 @@ async function main() {
       if (nowMs >= nextSpaEndMs) {
         runLog('INFO', `[HEATING→IDLE] Preheat failed earlier; stopping at event end.`);
         const state = await readSnapshot();
-        if (state?.valveState === 'pool' || state?.valveState === 'off') {
-          runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
+        const alreadyOff = (state?.valveState === 'pool' || state?.valveState === 'off')
+                        && state?.heaterAuto === 'off';
+        if (alreadyOff) {
+          runLog('INFO', `[HEATING→IDLE] Valve in pool mode and heater auto off — skipping spaHeatStop.`);
         } else {
+          runLog('INFO', `[HEATING→IDLE] Valve=${state?.valveState}, heaterAuto=${state?.heaterAuto} — executing spaHeatStop.`);
           try { runSpaMacro('spaHeatStop'); } catch (err) {
             runLog('ERROR', `spaHeatStop failed during failedPreheat end: ${err.message}`);
           }
@@ -689,10 +692,12 @@ async function main() {
     // Branch A: Event end time has passed — normal end, stop silently
     if (prev.nextSpaEventEndMs && nowMs > prev.nextSpaEventEndMs) {
       const state = await readSnapshot();
-      if (state?.valveState === 'pool' || state?.valveState === 'off') {
-        runLog('INFO', `[HEATING→IDLE] Event end time passed — spa already in pool mode.`);
+      const alreadyOff = (state?.valveState === 'pool' || state?.valveState === 'off')
+                      && state?.heaterAuto === 'off';
+      if (alreadyOff) {
+        runLog('INFO', `[HEATING→IDLE] Event end time passed — valve in pool mode and heater auto off. Skipping spaHeatStop.`);
       } else {
-        runLog('INFO', `[HEATING→IDLE] Event end time passed — calling spaHeatStop.`);
+        runLog('INFO', `[HEATING→IDLE] Event end time passed — Valve=${state?.valveState}, heaterAuto=${state?.heaterAuto}. Executing spaHeatStop.`);
         try { runSpaMacro('spaHeatStop'); } catch (err) {
           runLog('ERROR', `spaHeatStop failed: ${err.message}`);
         }
@@ -737,11 +742,14 @@ async function main() {
     // Event ended or max duration exceeded — stop heating and finalize
     const completionReason = exceededMax && !eventEnded ? 'max-duration' : 'event-ended';
 
-    runLog('INFO', `[HEATING→IDLE] Event ended (uid=${prev.nextSpaEvent?.uid}). Calling spaHeatStop.`);
+    // Event ended or max duration exceeded — stop heating and finalize
     const state = await readSnapshot();
-    if (state?.valveState === 'pool' || state?.valveState === 'off') {
-      runLog('INFO', `[HEATING→IDLE] Spa already in pool mode — skipping spaHeatStop.`);
+    const alreadyOff = (state?.valveState === 'pool' || state?.valveState === 'off')
+                    && state?.heaterAuto === 'off';
+    if (alreadyOff) {
+      runLog('INFO', `[HEATING→IDLE] Event ended (uid=${prev.nextSpaEvent?.uid}) — valve in pool mode and heater auto off. Skipping spaHeatStop.`);
     } else {
+      runLog('INFO', `[HEATING→IDLE] Event ended (uid=${prev.nextSpaEvent?.uid}). Valve=${state?.valveState}, heaterAuto=${state?.heaterAuto}. Executing spaHeatStop.`);
       try {
         runSpaMacro('spaHeatStop');
         runLog('INFO', `[HEATING→IDLE] spaHeatStop succeeded. Returning to pool mode.`);
