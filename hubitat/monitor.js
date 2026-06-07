@@ -12,7 +12,8 @@ const HUB_APP_ID = process.env.HUBITAT_APP_ID || '2321';
 let tokenFromFile = null;
 if (process.env.HUBITAT_TOKEN_FILE) {
   try {
-    tokenFromFile = require('fs').readFileSync(process.env.HUBITAT_TOKEN_FILE, 'utf8').trim();
+    const raw = require('fs').readFileSync(process.env.HUBITAT_TOKEN_FILE, 'utf8').trim();
+    tokenFromFile = raw.startsWith('access_token=') ? raw.split('access_token=')[1] : raw;
   } catch (err) {
     throw new Error(`HUBITAT_TOKEN_FILE was set but could not be read (${process.env.HUBITAT_TOKEN_FILE}): ${err.code || err.message}`);
   }
